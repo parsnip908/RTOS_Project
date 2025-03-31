@@ -17,7 +17,6 @@
 #ifndef __OS_H
 #define __OS_H  1
 #include <stdint.h>
-#include "../RTOS_Labs_common/queue.h"
 
 /**
  * \brief Times assuming a 80 MHz
@@ -27,55 +26,70 @@
 #define TIME_500US  (TIME_1MS/2)  
 #define TIME_250US  (TIME_1MS/4)  
 
+/**
+ * \brief Custom Defined Values
+ */ 
 #define JITTERSIZE 64
-// struct jitterStat {
-//    uint32_t period;
-//    uint32_t max;
-//    uint32_t total;
-//    uint32_t badCount;
-//    uint32_t hist[JITTERSIZE];
-// };
-// typedef struct jitterStat jitterStat_t;
+#define STACKSIZE 120 //Interpreter might be causing stack overflow, increase stack size
+#define FIFO_SIZE 2
 
-#define PD0  (*((volatile uint32_t *)0x40007004))
-#define PD1  (*((volatile uint32_t *)0x40007008))
-#define PD2  (*((volatile uint32_t *)0x40007010))
-#define PD3  (*((volatile uint32_t *)0x40007020))
+ /**
+ * \brief Variables for measuring interrupt time
+ */ 
+void DisableInterruptTime();
+void EnableInterruptTime();
+void EndCriticalTime(long status);
+long StartCriticalTime();
+uint64_t percentInterruptDisabled();
+uint64_t longestInterruptDisabled();
 
-#define THREADSPERPROC 4
+ /**
+ * \brief Custom TCB and PCB object
+ */ 
+typedef enum {RUNNING, ACTIVE, SLEEPING, BLOCKED, DEAD} State; //For threads and processes
 
-typedef struct pcb PCB_t;
-
-typedef struct __attribute__((packed)) tcb {
-  uint8_t *sp;
-  uint8_t id;
-  uint8_t status;
-  uint16_t priority;
-  uint64_t sleep;
-  uint32_t msTime;
-  PCB_t* parent;
-} TCB_t;
-
-struct pcb {
-  uint8_t id;
-  void* text;
-  void* data;
-  TCB_t* tcbs[THREADSPERPROC];
+//Thread struct
+typedef struct TCB TCB; // forward reference for next_tcb self-pointer
+typedef struct PCB PCB;
+struct TCB {
+  uint32_t *sp;
+  TCB *next_tcb; //Set before every context switch (which is also why it cant be used for semaphore blocking list, or else context switching will mess this up)
+	TCB *next_tcb_blocking; //Determines the next TCB when it is in the blocking list, used to traverse when thread is blocked
+	uint64_t lastRunTickCount; //For figuring out what to choose for round robin within the same priority
+  uint32_t id;
+  State state;
+  uint32_t resume_tick;
+  uint8_t priority;
+  uint32_t stack[STACKSIZE];
+	PCB* pcb;
 };
 
+struct PCB {
+	//ID of process, can range from 1+
+  uint32_t pid;
+	int32_t numThreads;
+	//According to lab docs: These fields are dynamically allocated to heap before being assigned to Process, free them when process killed
+	void* codePt;
+	void* dataPt;
+	State state;
+	uint8_t priority;
+	PCB* parents;
+};
 
 /**
  * \brief Semaphore structure. Feel free to change the type of semaphore, there are lots of good solutions
  */  
-struct  sem{
-  int32_t lock;   // >0 means free, otherwise means busy        
-  queue_t blocked_queue;
+struct  Sema4{
+  int32_t Value;   // >0 means free, otherwise means busy        
+	//Blocking stuff
+	TCB* blockedPt;
+	uint32_t numBlocked;
 };
-typedef struct sem sem_t;
+typedef struct Sema4 Sema4Type;
 
-void intDisableTimerStart(void);
-
-void intDisableTimerEnd(void);
+//Extern variables for interpreter
+extern uint32_t threadCount;
+extern int MaxJitter;
 
 /**
  * @details  Initialize operating system, disable interrupts until OS_Launch.
@@ -91,7 +105,7 @@ void OS_Init(void);
 // initialize semaphore 
 // input:  pointer to a semaphore
 // output: none
-void OS_InitSemaphore(sem_t *semaPt, int32_t value); 
+void OS_InitSemaphore(Sema4Type *semaPt, int32_t value); 
 
 // ******** OS_Wait ************
 // decrement semaphore 
@@ -99,7 +113,7 @@ void OS_InitSemaphore(sem_t *semaPt, int32_t value);
 // Lab3 block if less than zero
 // input:  pointer to a counting semaphore
 // output: none
-int OS_Wait(sem_t *sem); 
+void OS_Wait(Sema4Type *semaPt); 
 
 // ******** OS_Signal ************
 // increment semaphore 
@@ -107,21 +121,21 @@ int OS_Wait(sem_t *sem);
 // Lab3 wakeup blocked thread if appropriate 
 // input:  pointer to a counting semaphore
 // output: none
-int OS_Signal(sem_t *sem); 
+void OS_Signal(Sema4Type *semaPt); 
 
 // ******** OS_bWait ************
 // Lab2 spinlock, set to 0
 // Lab3 block if less than zero
 // input:  pointer to a binary semaphore
 // output: none
-int OS_bWait(sem_t *sem); 
+void OS_bWait(Sema4Type *semaPt); 
 
 // ******** OS_bSignal ************
 // Lab2 spinlock, set to 1
 // Lab3 wakeup blocked thread if appropriate 
 // input:  pointer to a binary semaphore
 // output: none
-int OS_bSignal(sem_t *sem); 
+void OS_bSignal(Sema4Type *semaPt); 
 
 //******** OS_AddThread *************** 
 // add a foregound thread to the scheduler
@@ -175,7 +189,6 @@ int OS_AddPeriodicThread(void(*task)(void),
 // In lab 3, there will be up to four background threads, and this priority field 
 //           determines the relative priority of these four threads
 int OS_AddSW1Task(void(*task)(void), uint32_t priority);
-void OS_SetupGPIOF(void);
 
 //******** OS_AddSW2Task *************** 
 // add a background task to run whenever the SW2 (PF0) button is pushed
@@ -191,6 +204,10 @@ void OS_SetupGPIOF(void);
 // In lab 3, there will be up to four background threads, and this priority field 
 //           determines the relative priority of these four threads
 int OS_AddSW2Task(void(*task)(void), uint32_t priority);
+
+// ******** OS_Schedule ************
+// logic to select the next thread to run
+void OS_Schedule(void);
 
 // ******** OS_Sleep ************
 // place this thread into a dormant state
@@ -214,14 +231,6 @@ void OS_Kill(void);
 // input:  none
 // output: none
 void OS_Suspend(void);
-// void OS_Block(void);
-// void OS_Unblock(void * thread);
-void OS_SysTick_Hook(void);
-
-void OS_Block(void);
-
-void OS_Unblock(TCB_t * thread);
-
 
 // temporarily prevent foreground thread switch (but allow background interrupts)
 unsigned long OS_LockScheduler(void);
@@ -295,7 +304,6 @@ uint32_t OS_MailBox_Recv(void);
 // It is ok to change the resolution and precision of this function as long as 
 //   this function and OS_TimeDifference have the same resolution and precision 
 uint64_t OS_Time(void);
-uint64_t OS_getSleepTime(int ms);
 
 // ******** OS_TimeDifference ************
 // Calculates difference between two times

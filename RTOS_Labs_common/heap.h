@@ -14,6 +14,7 @@
 #define HEAP_H
 
 #include <stdint.h>
+#include "../RTOS_Labs_common/OS.h"
 
 // struct for holding statistics on the state of the heap
 typedef struct heap_stats {

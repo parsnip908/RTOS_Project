@@ -10,36 +10,13 @@
         REQUIRE8
         PRESERVE8
 
-        EXTERN  RunPt            ; currently running thread
-        IMPORT OS_getNext
-        IMPORT OS_SysTick_Hook
+        EXTERN  runPt            ; currently running thread
+        EXTERN  NextRunPt        ; next thread selected by scheduler
 
         EXPORT  StartOS
         EXPORT  ContextSwitch
         EXPORT  PendSV_Handler
-        EXPORT  SysTick_Handler
         EXPORT  SVC_Handler
-        EXPORT  wait_cycles
-
-        IMPORT GPIOPortF_Hook
-        IMPORT OS_Timer_Hook
-
-        EXPORT GPIOPortF_Handler
-        ; EXPORT Timer0A_Handler
-        ; EXPORT Timer0B_Handler
-        EXPORT Timer1A_Handler
-        EXPORT Timer1B_Handler
-        EXPORT Timer2A_Handler
-        EXPORT Timer2B_Handler
-        EXPORT Timer3A_Handler
-        EXPORT Timer3B_Handler
-        EXPORT Timer4A_Handler
-        EXPORT Timer4B_Handler
-        EXPORT Timer5A_Handler
-        EXPORT Timer5B_Handler
-
-
-; .def USER_CLAIM_TIMER0
 
 NVIC_INT_CTRL   EQU     0xE000ED04                              ; Interrupt control state register.
 NVIC_SYSPRI14   EQU     0xE000ED22                              ; PendSV priority register (position 14).
@@ -48,27 +25,23 @@ NVIC_LEVEL14    EQU           0xEF                              ; Systick priori
 NVIC_LEVEL15    EQU           0xFF                              ; PendSV priority value (lowest).
 NVIC_PENDSVSET  EQU     0x10000000                              ; Value to trigger PendSV exception.
 
-wait_cycles
-    cmp     r0, #0
-    bxeq    lr
-waitloop
-    subs    r0, r0, #1
-    bne     waitloop
-    bx      lr
 
 StartOS
 ; put your code here
-    LDR R0, =RunPt ; currently running thread
-    LDR R1, [R0] ; R1 = value of RunPt
-    LDR SP, [R1] ; new thread SP; SP = RunPt->sp;
-    POP {R4-R11} ; restore regs r4-11
-    POP {R0-R3} ; restore regs r0-3
-    POP {R12}
-    ADD SP, SP, #4 ; discard LR from initial stack
-    POP {LR} ; start location
-    ADD SP, SP, #4 ; discard PSR
-    CPSIE I ; Enable interrupts at processor level
-    BX LR ; start first thread
+; this operates on the main processor's stack/regs (instead of those of TCB thread objects)
+; OS_Launch() puts first TCB pointer in R0
+    LDR     R0, =runPt  ; =RunPt is the addr of the RunPt
+    LDR     R1, [R0]    ; R1 = value of RunPt
+    LDR     SP, [R1]    ; SP is first element in TCB (RunPt->SP)
+
+    POP     {R4-R11}    ; restore regs r4-11
+    POP     {R0-R3,R12} ; restore regs r0-3
+    ADD     SP,SP,#4    ; discard LR from initial stack
+    POP     {LR}        ; load initial function pointer into LR (from PC idx)
+    ADD     SP,SP,#4    ; discard PSR
+    
+    CPSIE   I           ; enable interrupts
+    BX      LR          ; start first thread
 
 OSStartHang
     B       OSStartHang        ; Should never get here
@@ -81,37 +54,18 @@ OSStartHang
 ; Note(s) : 1) ContextSwitch() is called when OS wants to perform a task context switch.  This function
 ;              triggers the PendSV exception which is where the real work is done.
 ;********************************************************************************************************
-SysTick_Handler
-    CPSID I ; 2) Prevent interrupt during switch
-    PUSH {LR}
-    BL OS_SysTick_Hook
-    POP {LR}
-    ; B ContextSwitch
 
-PendSV_Handler
 ContextSwitch
-; edit this code
-    ; PUSH  {R0-R12,LR}
-    ; assuming came from interuppt (systick or pendsv)
-    
-    CPSID I ; 2) Prevent interrupt during switch
-    PUSH {R4-R11} ; 3) Save remaining regs r4-11
-    LDR R0, =RunPt ; 4) R0=pointer to RunPt, old thread
-    LDR R1, [R0] ; R1 = RunPt
-    STR SP, [R1] ; 5) Save SP into TCB
-    PUSH {LR}
-    BL OS_getNext
-    POP {LR}
-    ;LDR R1, [R1,#4] ; 6) R1 = RunPt->next
-    ;STR R1, [R0] ; RunPt = R1
-    ;LDR SP, [R1] ; 7) new thread SP; SP = RunPt->sp;
-    LDR SP, [R0] ; function returned runpt in R0;
-    POP {R4-R11} ; 8) restore regs r4-11
-    CPSIE I ; 9) tasks run with interrupts enabled
-    BX LR ; 10) restore R0-R3,R12,LR,PC,PSR
-    
-    
-    ;BX      LR
+; This should perform this action:  NVIC_INT_CTRL_R = NVIC_INT_CTRL_PEND_SV;
+; This sets the ICSR register (Address defined by NVIC_INT_CTRL_R) with defined constant for PendSV bit (NVIC_INT_CTRL_PEND_SV)
+; Activating this should cause pendSV interrupt to trigger, which will do the REAL context switch
+    PUSH    {R0,R1}
+    LDR     R0, =NVIC_INT_CTRL          ; Load address of ICSR
+    LDR     R1, =NVIC_PENDSVSET         ; Load PendSV value
+    STR     R1, [R0]                    ; Set PendSV value to ICSR address
+    POP     {R0,R1}                     ; Save R0, R1, same as before, not sure if needed though 
+    BX      LR                          ; Return
+
     
 
 ;********************************************************************************************************
@@ -148,19 +102,23 @@ ContextSwitch
 ;              know that it will only be run when no other exception or interrupt is active, and
 ;              therefore safe to assume that context being switched out was using the process stack (PSP).
 ;********************************************************************************************************
-; SysTick_Handler
-;     PUSH {LR}
-;     BL OS_SysTick_Hook
-;     POP {LR}
-;     B ContextSwitch
 
-; PendSV_Handler
-; ; put your code here
-;     ; goto context switch without doing anything. 
-;     ; we are here for the auto register saving feature only
-;     B ContextSwitch
-;     ; not linked so will not return from context switch. will go directly back to original
-;     BX      LR                 ; Exception return will restore remaining context   
+PendSV_Handler
+; put your code here
+    CPSID   I               ; Make atomic
+
+    PUSH    {R4-R11}       ; Push registers (Everything else (including LR) automatically pushed)
+    LDR     R0, =runPt         ; get address of RunPt (Pointer to current running thread's TCB)            
+    LDR     R1, [R0]           ; get value of RunPt (pointer that points to the TCB)
+    STR     SP, [R1]           ; save current thread SP back to the TCB via RunPt (0 offset since SP is the first param of TCB)
+    ; implement round robin scheduling
+    LDR     R1, [R1, #4]       ; point R1 to the next TCB (offset by 4 since next TCB is the second param)
+    LDR     SP, [R1]           ; load stack pointer from next TCB
+    STR     R1, [R0]           ; store new TCB's pointer to RunPtr (R0 is RunPt variable, R1 is new TCB)
+    ; start next thread
+    POP     {R4-R11}        ; Pop registers (Everything else automatically popped)
+    CPSIE   I               ; enable interrupts
+    BX      LR              ; Exception return will restore remaining context    
     
 
 ;********************************************************************************************************
@@ -180,99 +138,77 @@ ContextSwitch
         IMPORT    OS_AddThread
 
 SVC_Handler
-    LDR IP,[SP,#24] ; Return address
-    LDRH IP,[IP,#-2] ; SVC instruction is 2 bytesBIC R12,#0xFF00 ; Extract ID in R12
-    BIC IP,#0xFF00 ; Extract ID in R12
-    LDM SP,{R0-R3} ; Get any parameters
-    PUSH {LR}
-    LDR LR, =SVC_Return
+    LDR     R12, [SP,#24]      ; Return address
+    LDRH    R12, [R12,#-2]     ; SVC instruction is 2 bytes
+    BIC     R12, R12, #0xFF00  ; Extract ID in R12. This is the opcode passed during SVC call, look below
+    LDM     SP, {R0-R3}        ; Get any parameters
 
-    ; BL OS_xxx ; Call OS routine by ID…
-    CMP IP, #0
-    BEQ OS_Id
-    CMP IP, #1
-    BEQ OS_Kill
-    CMP IP, #2
-    BEQ OS_Sleep
-    CMP IP, #3
-    BEQ OS_Time
-    CMP IP, #4
-    BEQ OS_AddThread
+    PUSH    {R4,LR}
+    CMP     R12, #4 			; Checks the SVC opcode obtained earlier
+    BHI     MERGE 				; DEFAULT, triggered if opcode is greater than 4, invalid
+    ADR     R4, SWITCH			; If opcode is valid, load the address of switch table into R4
+    LDR     PC, [R4, R12, LSL #2] ;Load PC depending on switch table (R4) and (R12) as offset
 
-SVC_Return
-    POP {LR}
-    STR R0,[SP] ; Store return value
-    BX LR ; Return from exception
+	ALIGN 4 ; 4 byte align (p2align 2: 2^2 align)
+	
+SWITCH
+    DCD   OS_ID+1         ; #0 convert .word to DCD, both define 32 bit value
+    DCD   OS_KILL+1       ; #1
+    DCD   OS_SLEEP+1      ; #2
+    DCD   OS_TIME+1       ; #3
+    DCD   OS_ADDTHREAD+1  ; #4
+    ALIGN
+
+OS_ID
+    BL  OS_Id
+    B   MERGE
+OS_KILL
+    BL  OS_Kill
+    B   MERGE
+OS_SLEEP
+    BL  OS_Sleep
+    B   MERGE
+OS_TIME
+    BL  OS_Time
+    B   MERGE
+OS_ADDTHREAD
+    BL  OS_AddThread
+    B   MERGE
+DEFAULT
+    ; TODO
+
+MERGE
+    POP     {R4,LR}
+    STR     R0,[SP]      ; Store return value
+    BX      LR           ; Return from exception
 
 
 
-GPIOPortF_Handler
-    ; CPSID I
-    B GPIOPortF_Hook
-    ; PUSH {LR}
-    ; BL GPIOPortF_Hook
-    ; POP {LR}
-    ; B ContextSwitch
+;*****************************************************************************
+;*                         OS System Calls                                   *
+;*****************************************************************************
 
-; Timer0A_Handler
-; Timer0B_Handler
-;     CPSID I
-;     MOV R0, #0
-;     B OS_Timer_Hook
-    ; PUSH {LR}
-    ; BL OS_Timer_Hook
-    ; POP {LR}
-    ; B ContextSwitch
+SVC_OS_Id
+	SVC		#0 ; Calls SVC with #0 as opcode (Trigger the handler). Opcode is then passed into R12 in handler
+	BX		LR
 
-Timer1A_Handler
-Timer1B_Handler
-    ; CPSID I
-    MOV R0, #1
-    B OS_Timer_Hook
-    ; PUSH {LR}
-    ; BL OS_Timer_Hook
-    ; POP {LR}
-    ; B ContextSwitch
+SVC_OS_Kill
+	SVC		#1
+	BX		LR
 
-Timer2A_Handler
-Timer2B_Handler
-    ; CPSID I
-    MOV R0, #2
-    B OS_Timer_Hook
-    ; PUSH {LR}
-    ; BL OS_Timer_Hook
-    ; POP {LR}
-    ; B ContextSwitch
+SVC_OS_Sleep
+	SVC		#2
+	BX		LR
 
-Timer3A_Handler
-Timer3B_Handler
-    CPSID I
-    MOV R0, #3
-    B OS_Timer_Hook
-    ; PUSH {LR}
-    ; BL OS_Timer_Hook
-    ; POP {LR}
-    ; B ContextSwitch
+SVC_OS_Time
+	SVC		#3
+	BX		LR
 
-Timer4A_Handler
-Timer4B_Handler
-    CPSID I
-    MOV R0, #4
-    B OS_Timer_Hook
-    ; PUSH {LR}
-    ; BL OS_Timer_Hook
-    ; POP {LR}
-    ; B ContextSwitch
+SVC_OS_AddThread
+	SVC		#4
+	BX		LR
 
-Timer5A_Handler
-Timer5B_Handler
-    CPSID I
-    MOV R0, #5
-    B OS_Timer_Hook
-    ; PUSH {LR}
-    ; BL OS_Timer_Hook
-    ; POP {LR}
-    ; B ContextSwitch
+
 
     ALIGN
     END

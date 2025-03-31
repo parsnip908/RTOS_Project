@@ -31,6 +31,9 @@
 #include <stdint.h>
 #include "../RTOS_Labs_common/FIFOsimple.h"
 
+//TODO:
+//Add semaphore to RxFIFO (most efficient) maybe TxFIFO
+
 
 // Switch between index vs. pointer based implementations
 #ifndef _FIFO_SIMPLE_POINTER
@@ -93,12 +96,14 @@ int RxFifo_Put(rxDataType data){
   }
   RxFifo[RxPutI&(RXFIFOSIZE-1)] = data; // put
   RxPutI++;  // Success, update
+	//TODO: Semaphore signal
   return(RXFIFOSUCCESS);
 }
 // remove element from front of index FIFO
 // return TXFIFOSUCCESS if successful
 int RxFifo_Get(rxDataType *datapt){
   if(RxPutI == RxGetI ){
+		//TODO: Instead of returning, semaphore block
     return(RXFIFOFAIL); // Empty if RxPutI=RxGetI
   }
   *datapt = RxFifo[RxGetI&(RXFIFOSIZE-1)];

@@ -13,7 +13,7 @@
 
 
 
-void printJitter(int timerNum);
+
 
 /**
  * @details  Run the user interface.

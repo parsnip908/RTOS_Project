@@ -1,0 +1,10 @@
+void *_sbrk(int incr);
+int _close(int file);
+int _fstat(int file);
+int _isatty(int file);
+int _lseek(int file, int ptr, int dir);
+void _exit(int status);
+void _kill(int pid, int sig);
+int _getpid(void);
+int _write (int file, char * ptr, int len);
+int _read (int file, char * ptr, int len);

@@ -73,9 +73,9 @@
 // CS   - PA3 TFT_CS, active low to enable TFT
 // *CS  - (NC) SDC_CS, active low to enable SDC
 // MISO - (NC) MISO SPI data from SDC to microcontroller
-// SDA  – (NC) I2C data for ADXL345 accelerometer
-// SCL  – (NC) I2C clock for ADXL345 accelerometer
-// SDO  – (NC) I2C alternate address for ADXL345 accelerometer
+// SDA  ï¿½ (NC) I2C data for ADXL345 accelerometer
+// SCL  ï¿½ (NC) I2C clock for ADXL345 accelerometer
+// SDO  ï¿½ (NC) I2C alternate address for ADXL345 accelerometer
 // Backlight + - Light, backlight connected to +3.3 V
 
 // **********wide.hk ST7735R with ADXL335 accelerometer *******************
@@ -89,9 +89,9 @@
 // CS   - PA3 TFT_CS, active low to enable TFT
 // *CS  - (NC) SDC_CS, active low to enable SDC
 // MISO - (NC) MISO SPI data from SDC to microcontroller
-// X– (NC) analog input X-axis from ADXL335 accelerometer
-// Y– (NC) analog input Y-axis from ADXL335 accelerometer
-// Z– (NC) analog input Z-axis from ADXL335 accelerometer
+// Xï¿½ (NC) analog input X-axis from ADXL335 accelerometer
+// Yï¿½ (NC) analog input Y-axis from ADXL335 accelerometer
+// Zï¿½ (NC) analog input Z-axis from ADXL335 accelerometer
 // Backlight + - Light, backlight connected to +3.3 V
 
 // **********HiLetgo ST7735 TFT and SDC (SDC not tested)*******************
@@ -113,11 +113,12 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <string.h>
+//#include <string.h>
 #include "../inc/tm4c123gh6pm.h"
 #include "../RTOS_Labs_common/ST7735.h"
 #include "../RTOS_Labs_common/OS.h"
 #include "../RTOS_Labs_common/eDisk.h"
+#include "../utils/ustdlib.h"
 // these defines are in two places, here and in eDisk.c
 #define SDC_CS_PB0 1
 #define SDC_CS_PD7 0
@@ -533,7 +534,7 @@ static uint8_t Rotation;           // 0 to 3
 static enum initRFlags TabColor;
 static int16_t _width = ST7735_TFTWIDTH;   // this could probably be a constant, except it is used in Adafruit_GFX and depends on image rotation
 static int16_t _height = ST7735_TFTHEIGHT;
-sem_t LCDFree;       // used for mutual exclusion
+Sema4Type LCDFree;       // used for mutual exclusion
 
 
 // The Data/Command pin must be valid when the eighth bit is
@@ -1295,7 +1296,7 @@ uint32_t ST7735_DrawString(uint16_t x, uint16_t y, char *pt, int16_t textColor){
 // Input: 32-bit number to be transferred
 // Output: none
 // Variable format 1-10 digits with no space before or after
-char Message[21];
+char Message[12];
 uint32_t Messageindex;
 
 void fillmessage(uint32_t n){
@@ -1305,8 +1306,8 @@ void fillmessage(uint32_t n){
     fillmessage(n/10);
     n = n%10;
   }
-  if(Messageindex >= 21) return;
-  Message[Messageindex++] = (n+'0'); /* n is between 0 and 9 */
+  Message[Messageindex] = (n+'0'); /* n is between 0 and 9 */
+  if(Messageindex<11)Messageindex++;
 }
 
 void fillmessage4(uint32_t n){
@@ -1406,21 +1407,16 @@ void ST7735_OutUDec2(uint32_t n, uint32_t l){
 //        line    row from top, 0 to 7 for each device
 //        pt      pointer to a null terminated string to be printed
 //        value   signed integer to be printed
-void ST7735_Message(uint32_t  d, uint32_t  l, char *pt, int32_t value){
-  // write this as part of Labs 1 and 2
-  OS_Wait(&LCDFree);
-  int ptlen = strlen(pt);
-  strncpy(Message, pt, 21);
-  Messageindex = ptlen;
-  fillmessage(value);
-  while(Messageindex < 20)
-    Message[Messageindex++] = ' '; /* n is between 0 and 9 */
-
-  Message[20] = '\0';
-  // printf("LCD print: device %d, line %d, message \"%s\"\n", d, l, Message);
-  ST7735_DrawString(0, d*8+l, Message, 0xFFFF);
-  OS_Signal(&LCDFree);
-
+void ST7735_Message(uint32_t d, uint32_t  l, char *pt, int32_t value){
+  // convert d and l to real line number
+  if (l > 7)
+    return;
+  uint32_t y = d*8 + l;
+  // concat value to end of string
+  char val_str[20];
+  usnprintf(val_str, 20, "%s %d", pt, value);
+  // print string
+  ST7735_DrawString(0, y, val_str, ST7735_WHITE);
 }
 
 //-----------------------ST7735_OutUDec4-----------------------

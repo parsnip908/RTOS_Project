@@ -314,7 +314,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>0</interw>
-            <Optim>6</Optim>
+            <Optim>2</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -323,13 +323,13 @@
             <PlainCh>0</PlainCh>
             <Ropi>0</Ropi>
             <Rwpi>0</Rwpi>
-            <wLevel>2</wLevel>
+            <wLevel>3</wLevel>
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <uC99>1</uC99>
             <uGnu>0</uGnu>
             <useXO>0</useXO>
-            <v6Lang>5</v6Lang>
+            <v6Lang>3</v6Lang>
             <v6LangP>5</v6LangP>
             <vShortEn>1</vShortEn>
             <vShortWch>1</vShortWch>
@@ -490,24 +490,69 @@
               <FilePath>..\RTOS_Labs_common\FIFOsimple.c</FilePath>
             </File>
             <File>
-              <FileName>OS_Int.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\RTOS_Labs_common\OS_Int.c</FilePath>
+              <FileName>Timer5A.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\inc\Timer5A.h</FilePath>
             </File>
             <File>
-              <FileName>OS_sync.c</FileName>
+              <FileName>Timer5A.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\RTOS_Labs_common\OS_sync.c</FilePath>
+              <FilePath>..\inc\Timer5A.c</FilePath>
             </File>
             <File>
-              <FileName>queue.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\RTOS_Labs_common\queue.c</FilePath>
+              <FileName>Timer4A.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\inc\Timer4A.h</FilePath>
             </File>
             <File>
-              <FileName>driverlib.lib</FileName>
-              <FileType>4</FileType>
-              <FilePath>C:\ti\TivaWare_C_Series-2.2.0.295\driverlib\rvmdk\driverlib.lib</FilePath>
+              <FileName>Timer4A.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\inc\Timer4A.c</FilePath>
+            </File>
+            <File>
+              <FileName>Timer3A.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\inc\Timer3A.h</FilePath>
+            </File>
+            <File>
+              <FileName>Timer3A.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\inc\Timer3A.c</FilePath>
+            </File>
+            <File>
+              <FileName>Interpreter.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\RTOS_Labs_common\Interpreter.h</FilePath>
+            </File>
+            <File>
+              <FileName>ST7735.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\RTOS_Labs_common\ST7735.h</FilePath>
+            </File>
+            <File>
+              <FileName>stdlib_stub.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\utils\stdlib_stub.c</FilePath>
+            </File>
+            <File>
+              <FileName>stdlib_stub.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\utils\stdlib_stub.h</FilePath>
+            </File>
+            <File>
+              <FileName>ustdlib.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\utils\ustdlib.h</FilePath>
+            </File>
+            <File>
+              <FileName>ustdlib.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\utils\ustdlib.c</FilePath>
+            </File>
+            <File>
+              <FileName>loader.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\loader.h</FilePath>
             </File>
           </Files>
         </Group>
@@ -520,14 +565,5 @@
     <components/>
     <files/>
   </RTE>
-
-  <LayerInfo>
-    <Layers>
-      <Layer>
-        <LayName>Lab5</LayName>
-        <LayPrjMark>1</LayPrjMark>
-      </Layer>
-    </Layers>
-  </LayerInfo>
 
 </Project>

@@ -46,7 +46,7 @@ uint32_t NumCreated;   // number of foreground threads created
 uint32_t IdleCount;    // CPU idle counter
 
 //---------------------User debugging-----------------------
-// extern int32_t MaxJitter;             // largest time jitter between interrupts in usec
+extern int32_t MaxJitter;             // largest time jitter between interrupts in usec
 
 #define PD0  (*((volatile uint32_t *)0x40007004))
 #define PD1  (*((volatile uint32_t *)0x40007008))
@@ -61,15 +61,6 @@ void PortD_Init(void){
   GPIO_PORTD_DEN_R |= 0x0F;        // enable digital I/O on PD3-0
   GPIO_PORTD_PCTL_R = ~0x0000FFFF;
   GPIO_PORTD_AMSEL_R &= ~0x0F;;    // disable analog functionality on PD
-
-  SYSCTL_RCGCGPIO_R |= 0x20;       // activate port D
-  while((SYSCTL_RCGCGPIO_R&0x20)==0){};      
-  GPIO_PORTF_DIR_R |= 0x0C;        // make PD3-0 output heartbeats
-  GPIO_PORTF_AFSEL_R &= ~0x0C;     // disable alt funct on PD3-0
-  GPIO_PORTF_DEN_R |= 0x0C;        // enable digital I/O on PD3-0
-  // GPIO_PORTF_PCTL_R = ~0x0000FFFF;
-  GPIO_PORTF_AMSEL_R &= ~0x0C;;    // disable analog functionality on PD
-
 }
 
 
@@ -137,9 +128,9 @@ void Idle(void){
 
 //*******************final user main DEMONTRATE THIS TO TA**********
 int realmain(void){ // realmain
-  PortD_Init();     // debugging profile
   OS_Init();        // initialize, disable interrupts
-  // MaxJitter = 0;    // in 1us units
+  PortD_Init();     // debugging profile
+  MaxJitter = 0;    // in 1us units
 	
   // hardware init
   ADC_Init(0);  // sequencer 3, channel 0, PE3, sampling in Interpreter
@@ -154,7 +145,7 @@ int realmain(void){ // realmain
   // create initial foreground threads
   NumCreated = 0;
   NumCreated += OS_AddThread(&Interpreter,128,2); 
-  // NumCreated += OS_AddThread(&Idle,128,5);  // at lowest priority 
+  NumCreated += OS_AddThread(&Idle,128,5);  // at lowest priority 
  
   OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
   return 0;            // this never executes
@@ -595,4 +586,7 @@ int Testmain3(void){   // Testmain3
 //*******************Trampoline for selecting main to execute**********
 int main(void) { 			// main
   realmain();
+	//OS_Init();
+	//TestHeap();
+	//TestmainFile();
 }

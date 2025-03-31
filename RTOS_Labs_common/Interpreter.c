@@ -7,265 +7,348 @@
 #include <stdint.h>
 #include <string.h> 
 #include <stdio.h>
-#include <stdlib.h>
+#include <limits.h>
+#include "OS.h"
+#include "../utils/ustdlib.h"
 #include "../RTOS_Labs_common/OS.h"
 #include "../RTOS_Labs_common/ST7735.h"
 #include "../inc/ADCT0ATrigger.h"
 #include "../inc/ADCSWTrigger.h"
 #include "../RTOS_Labs_common/UART0int.h"
+#include "../RTOS_Labs_common/ADC.h"
 #include "../RTOS_Labs_common/eDisk.h"
 #include "../RTOS_Labs_common/eFile.h"
-#include "../RTOS_Lab5_ProcessLoader/loader.h"
-
-
-static const ELFSymbol_t symtab[] = {
-  { "ST7735_Message", ST7735_Message } // address of ST7735_Message
-};
-
-void LoadProgram(char* filename) {
-  ELFEnv_t env = { symtab, 1 }; // symbol table with one entry
-  if(exec_elf(filename, &env))
-    printf("load failed\n");
-  else
-    printf("load success\n");
-} 
-
-// extern int ADCdata;
-extern uint32_t maxJitter[6];
-extern uint32_t jitterHistogram[6][JITTERSIZE];
-
-extern uint32_t maxIntDisableTime;
-extern uint64_t totalIntDisableTime;
-extern uint64_t startTime;
+#include "../RTOS_Lab5_processloader/loader.h"
 
 
 // Print jitter histogram
-void printJitter(int timerNum){
-  printf("Jitter Info Timer %d\n", timerNum);
-  printf("Max Jitter: %d\n", maxJitter[timerNum]);
-  printf("Histogram:\n");
-  uint32_t *hist = jitterHistogram[timerNum];
-  for(int i = 0; i < JITTERSIZE; i +=4)
-  {
-    printf("%02d-%02d: %4d, %4d, %4d, %4d\n", i, i+3, hist[i], hist[i+1], hist[i+2], hist[i+3]);
-  }
-  printf("\n");
+void Jitter(int32_t MaxJitter, uint32_t const JitterSize, uint32_t JitterHistogram[]){
+  // write this for Lab 3 (the latest)
 	
 }
 
-// *********** Command line interpreter (shell) ************
-void Interpreter(void){ 
-  char cmd[128];
-  int cmdLen = 0;
-  while(1)
-  {
-    printf(">");
-    fgets(cmd, 128, stdin);
-    char* cmd_tok = strtok(cmd, " \n");
-    
-    PD1 ^= 0x02;
-    if(strcmp(cmd_tok, "lcd") == 0)
-    {
-      char* top_bot = strtok(NULL, " \n");
-      char* line_str = strtok(NULL, " \n");
-      char* value_str = strtok(NULL, " \n");
-      char* message = strtok(NULL, "\n");
-      if(message == NULL)
-      {
-        printf("usage: lcd top/bot line value word1 [wordn]\n");
-        continue;
-      }
-      int screen;
-      if(strcmp(top_bot, "top") == 0)
-        screen = 0;
-      else if(strcmp(top_bot, "bot") == 0)
-        screen = 1;
-      else
-      {
-        printf("usage: lcd top/bot line value word1 [wordn]\n");
-        continue;
-      }
-      int line = atoi(line_str);
-      int value = atoi(value_str);
-      ST7735_Message(screen, line, message, value);
+// predefined string hashes
+#define LCD_TOP    1804049322U
+#define LCD_BOTTOM 3179955660U
+#define ADC_IN     4050446275U
+#define TIME       2090760340U
+#define RESET_TIME 2371262582U
+#define HELP       2090324718U
+#define DATA_LOST  99240257U
+#define INTERRUPT  314333426U
+#define HELP_MESSAGE "Help:\r\n\
+lcd_top <line> <message>: 		print to <line> on the top half of the lcd\r\n\
+lcd_bottom <line> <message>: 	print to <line> on the bottom half of the lcd\r\n\
+adc_in: 											gets the current value of ADC (channel 3)\r\n\
+time: 												gets the current runtime in ms\r\n\
+reset_time: 									resets the runtime counter\r\n\
+help: 												prints this message\r\n\
+threads <line>: 							displays thread count\r\n\
+jitter <line>: 								displays jitter time\r\n\
+datalost <line>: 							displays datalost\r\n\
+interrupt: 										displays percentage interrupt enabled time and longest interrupt\r\n\
+format: 											format SD card\r\n\
+display_dir: 									display files in dir \r\n\
+print_file <string>: 					print file with name \r\n\
+delete_file <string>: 				delete file with name \r\n\
+create_file <string>: 				create empty file with name \r\n\
+append_file <string> <char>:  append to file with char \r\n\
+load <file>:                 	executes ELF/AXF file.\r\n\
+"
+#define THREADS 3758332912U //threads
+#define JITTER 114260791U //jitter
 
-    }
-    else if(strcmp(cmd_tok, "adc_in") == 0)
-    {
-      // printf("%d\n", ADCdata);
-    }
-    else if(strcmp(cmd_tok, "time") == 0)
-    {
-      char* arg = strtok(NULL, " \n");
-      if(arg != NULL && strcmp(arg, "rst") == 0)
-      {
-        printf("timer reset\n");
-        OS_ClearMsTime();
-      }
-      else if(arg != NULL && strcmp(arg, "abs") == 0)
-      {
-        uint64_t time = OS_Time();
-        uint64_t mod = 1000 * 1000 * 1000; //1 billion
-        printf("absolute time: %x%x  %u%u\n", 
-               (uint32_t) (time >> 32), (uint32_t) time,
-               (uint32_t) (time / mod), (uint32_t) (time % mod));
-      }
-      else
-      {
-        uint32_t time = OS_MsTime();
-        printf("%u.%u\n", time / 1000, time %1000);
-      }
-    }
-    else if(strcmp(cmd_tok, "jitter") == 0)
-    {
-      char* arg = strtok(NULL, " \n");
-      if(arg != NULL)
-      {
-        printJitter(atoi(arg));
-      }
-      else
-        printJitter(1);
-    }
-    else if(strcmp(cmd_tok, "int") == 0)
-    {
-      // float percentage = 100.0f * ((float) totalIntDisableTime / (float) (OS_Time() - startTime));
-      printf("Max time ints disabled: %u us\n", maxIntDisableTime / (TIME_1MS/1000));
-      printf("total time ints disabled: %u ms\n", (uint32_t) (totalIntDisableTime / TIME_1MS));
-      printf("%% time ints disabled: %u%%\n", (uint32_t) ((totalIntDisableTime * 1000) / (OS_Time() - startTime)) /10);
-      // printf("%% time ints disabled: %u.%03u%%\n", (uint32_t) percentage, (uint32_t) (percentage - ((int) percentage))*1000);
-    }
-    else if(strcmp(cmd_tok, "touch") == 0)
-    {
-      char* arg = strtok(NULL, " \n");
-      if(arg != NULL)
-      {
-        if(eFile_Create(arg))
-        {
-          printf("create failed");
-        }
-        else
-          printf("Created %s", arg);
-      }
-    }
-    else if(strcmp(cmd_tok, "ls") == 0)
-    {
-      if(eFile_DOpen("")) 
-        continue;
-      char* name;
-      unsigned long size;
-      while(!eFile_DirNext(&name, &size)){
-        printf("%s\t\t%lu\n", name, size);
-        // total = total+size;
-        // num++;    
-      }
-      // printf(string3, num);
-      // printf("\n\r");
-      // printf(string4, total);
-      // printf("\n\r");
-      if(eFile_DClose()) 
-        continue;
-    }
-    else if(strcmp(cmd_tok, "cat") == 0)
-    {
-      char* arg = strtok(NULL, " \n");
-      if(arg != NULL)
-      {
-        if(eFile_ROpen(arg))
-        {
-          printf("open failed");
-        }
-        char data;
-        while(eFile_ReadNext(&data) == 0)
-          printf("%c", data);
+//Filesys instructions
+#define FORMAT 673136283 //format
+#define DISPLAY_DIR 2509617850 //display_dir
+#define PRINT_FILE 2403744957 //print_file
+#define DELETE_FILE 1348838026 //delete_file
+#define CREATE_FILE 2565874136 //create_file
+#define WOPEN_FILE 1536931917 //wopen_file
+#define APPEND_FILE 1750019708 //append_file
+#define WCLOSE_FILE 2509654161 //wclose_file
 
-        if(eFile_RClose())
-        {
-          printf("close failed");
-        }
-      }
-    }
-    else if(strcmp(cmd_tok, "vim") == 0)
-    {
-      char* arg = strtok(NULL, " \n");
-      char* data = strtok(NULL, " \n");
-      if(arg != NULL && data != NULL)
-      {
-        if(eFile_WOpen(arg))
-        {
-          printf("open failed");
-        }
+//Elf file
+#define LOAD       2090478981U //load
 
-        for(unsigned int i = 0; i < strlen(data); i++)
-        {
-          eFile_Write(data[i]);
-        }        
-        if(eFile_WClose())
-        {
-          printf("close failed");
-        }
-      }
-    }
-    else if(strcmp(cmd_tok, "rm") == 0)
-    {
-      char* arg = strtok(NULL, " \n");
-      if(arg != NULL)
-      {
-        if(eFile_Delete(arg))
-        {
-          printf("delete failed");
-        }
-        else
-          printf("Deleted %s", arg);
-      }
-    }
-    else if(strcmp(cmd_tok, "fs_format") == 0)
-    {
-      eFile_Unmount();
-      eFile_Format();
-      eFile_Mount();
-    }
-    else if(strcmp(cmd_tok, "fs_mount") == 0)
-      eFile_Mount();
-    else if(strcmp(cmd_tok, "fs_unmount") == 0)
-      eFile_Unmount();
-    else if(strcmp(cmd_tok, "exec") == 0)
-    {
-      char* arg = strtok(NULL, " \n");
-      LoadProgram(arg);
-    }
-    else if(strcmp(cmd_tok, "exec_batch") == 0)
-    {
-      char* arg_file = strtok(NULL, " \n");
-      char* arg_num = strtok(NULL, " \n");
-      char* arg_delay = strtok(NULL, " \n");
+//Extern variable for debugging
+//extern uint32_t DataLost; 
+uint32_t DataLost = 0; 
 
-      if(arg_file && arg_num && arg_delay)
-      {
-        LoadProgram(arg_file);
-        for (int i = 1; i < atoi(arg_num); ++i)
-        {
-          OS_Sleep(atoi(arg_delay));
-          LoadProgram(arg_file);
-        }
+// process loader
+static const ELFSymbol_t symtab[] = {
+  { "ST7735_Message", ST7735_Message }
+};
+static ELFEnv_t env = {symtab, 1};
 
-      }
-
-    }
-
-
-
-    else
-    {
-      while(cmd_tok != NULL)
-      {
-        printf("%s\n", cmd_tok);
-        cmd_tok = strtok(NULL, " \n");
-      }
-    }
-    PD1 ^= 0x02;
-
+// djb2 hash
+const unsigned int hash(const char *str) {
+  unsigned long hash = 5381;
+  int c;
+  while (c = *str++) {
+    hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
   }
-
+  return hash % UINT_MAX; // (4294967296)
 }
 
+// *********** Command line interpreter (shell) ************
+void Interpreter(void){ //OS suspend Fifo stuff maybe
+  // write this  
+  uint16_t maxstrlen = 30; //Stack allocated for a TCB needs to be big enough to accomodate this
+  char strbuf[maxstrlen]; //Command passed to interpreter
+  char msg_out[maxstrlen]; //Message to print out
+  char msg_in[maxstrlen]; //Param to pass in (string)
+  uint32_t line = 0;
+  uint32_t lcdval = 0;
+	char lcdchar = 0;
+	char charArg = 0; //Char param
 
+  UART_OutString("\rEnter a command:\r\n");
+
+  while (1) {
+    UART_OutString("> ");
+    strbuf[0] = '\0';
+    UART_InString(strbuf, maxstrlen); //Hardfault causing line fixed: Increase TCB stack size to avoid overflow
+    UART_OutString("\r\n");
+
+    // do nothing on empty line
+    if (strbuf[0] == '\0')
+      continue;
+
+    //Parse inputs
+    char *args = strchr(strbuf, ' ')+1;
+    char *cmd = strtok(strbuf, " ");
+
+    switch (hash(cmd)) {
+      case LCD_TOP:
+        // parse arguments
+        if(sscanf(args, "%d %s %d", &line, msg_in, &lcdval) == 3){ 
+          // print to screen
+          ST7735_Message(0,line,msg_in,lcdval);
+          usnprintf(msg_out, maxstrlen, "Printed to line %d of top screen: '%s' %d\r\n", line, msg_in, lcdval);
+          UART_OutString(msg_out);
+        } else {
+          UART_OutString("Error lcd_top: wrong arguments\r\n");
+        }
+        break;
+
+      case LCD_BOTTOM:
+        // parse arguments
+        if(sscanf(args, "%d %s %d", &line, msg_in, &lcdval) == 3){ 
+          // print to screen
+          ST7735_Message(1,line,msg_in,lcdval);
+          usnprintf(msg_out, maxstrlen, "Printed to line %d of bottom screen: '%s' %d\r\n", line, msg_in, lcdval);
+          UART_OutString(msg_out);
+        } else {
+          UART_OutString("Error lcd_top: wrong arguments\r\n");
+        }
+        break;
+
+      case ADC_IN:
+        uint32_t adcval = ADC_In();
+        usnprintf(strbuf, maxstrlen, "ADC value: %d\r\n", adcval);
+        UART_OutString(strbuf);
+        break;
+
+      case TIME:
+        uint32_t systime = OS_MsTime();
+        usnprintf(msg_out, maxstrlen, "Current System Time: %d ms\r\n", systime);
+        UART_OutString(msg_out);
+        break;
+
+      case RESET_TIME:
+        OS_ClearMsTime();
+        UART_OutString("Reset system timer.\r\n");
+        break;
+
+      case HELP:
+        UART_OutString(HELP_MESSAGE);
+        break;
+
+      case THREADS:
+				if(sscanf(args, "%d", &line) == 1){ 
+					ST7735_Message(0,line,"Thread Count: ", threadCount);
+					UART_OutUDec(threadCount);
+				} else {
+          UART_OutString("Error threads: wrong arguments\r\n");
+        }
+				
+        break;
+
+      case JITTER:
+				if(sscanf(args, "%d", &line) == 1){ 
+					ST7735_Message(0,line,"Jitter (0.1 us): ", MaxJitter);
+					UART_OutUDec(MaxJitter);
+				} else {
+          UART_OutString("Error jitter: wrong arguments\r\n");
+        }
+        break;
+				
+			case DATA_LOST:
+				if(sscanf(args, "%d", &line) == 1){ 
+					ST7735_Message(0,line,"DataLost: ", DataLost);
+					UART_OutUDec(DataLost);
+				} else {
+          UART_OutString("Error: datalost: wrong arguments\r\n");
+        }
+        break;
+		
+			case INTERRUPT:
+				ST7735_Message(0,1,"Percent: ", percentInterruptDisabled());
+				UART_OutUDec(percentInterruptDisabled());
+				ST7735_Message(0,2,"longest: ", longestInterruptDisabled());
+				UART_OutUDec(longestInterruptDisabled());
+        break;
+			
+			case FORMAT:
+				int res = eFile_Format();
+				if(res == 0){
+					UART_OutString("Formatted disk\r\n");
+				} else {
+					UART_OutString("Format fail\r\n");
+				}
+				break;
+			
+			case DISPLAY_DIR:
+				char* pt;
+				unsigned long size;
+				//Try to open dir
+				if(eFile_DOpen(NULL) == 1){break;}
+				//Keep reading until end
+				while(eFile_DirNext(&pt, &size) == 0){
+					UART_OutString("name: ");
+					UART_OutString(pt);
+					UART_OutString(" size: ");
+					UART_OutUDec(size);  
+					UART_OutString("\r\n");  
+				}
+				//Close dir
+				eFile_DClose();
+				break;
+			
+			case PRINT_FILE:
+				//Read open, print, and then Read close within one command
+				if(sscanf(args, "%s", msg_in) == 1){ 
+					//Try to open
+					if(eFile_ROpen(msg_in) != 0){
+						UART_OutString("Error: print_file: can't open file\r\n");
+						break;
+					}
+					
+					//Read characters
+					char data;
+					while(eFile_ReadNext(&data) == 0){
+						UART_OutChar(data); //Keep reading characters from file
+					}
+					UART_OutString("\r\n");
+					
+					//End finished read, close file
+					eFile_RClose();
+				} else {
+          UART_OutString("Error: print_file: wrong arguments\r\n");
+        }
+				break;
+			
+			case DELETE_FILE:
+				if(sscanf(args, "%s", msg_in) == 1){ 
+					//Try to delete
+					if(eFile_Delete(msg_in) != 0){
+						UART_OutString("Error: delete_file: can't delete file\r\n");
+						break;
+					} else {
+						UART_OutString("Deleted file\r\n");
+					}
+				} else {
+          UART_OutString("Error: delete_file: wrong arguments\r\n");
+        }
+				break;
+				
+			case CREATE_FILE:
+				if(sscanf(args, "%s", msg_in) == 1){ 
+					//Test name length
+					if(strlen(msg_in) > 7){
+						UART_OutString("Error: create_file: exceed max length of name (7)\r\n");
+						break;
+					}
+					//Try to create
+					if(eFile_Create(msg_in) != 0){
+						UART_OutString("Error: create_file: can't create file\r\n");
+						break;
+					} else {
+						UART_OutString("Created file\r\n");
+					}
+				} else {
+          UART_OutString("Error: Create_file: wrong arguments\r\n");
+        }
+				break;
+			
+			case WOPEN_FILE:
+				if(sscanf(args, "%s", msg_in) == 1){ 
+					//Try to write open
+					if(eFile_WOpen(msg_in) != 0){
+						UART_OutString("Error: wopen_file: can't open file\r\n");
+						break;
+					} else {
+						UART_OutString("WOpen file\r\n");
+					}
+				} else {
+          UART_OutString("Error: wopen_file: wrong arguments\r\n");
+        }
+				break;
+			
+			case WCLOSE_FILE:
+				if(sscanf(args, "%s", msg_in) == 1){ 
+					//Try to write close
+					if(eFile_WOpen(msg_in) != 0){
+						UART_OutString("Error: wclose_file: can't close file\r\n");
+						break;
+					} else {
+						UART_OutString("WClose file\r\n");
+					}
+				} else {
+          UART_OutString("Error: wclose_file: wrong arguments\r\n");
+        }
+				break;
+			
+			case APPEND_FILE:
+				if(sscanf(args, "%c", &charArg) == 1){ 
+					//Try to append close
+					if(eFile_Write(charArg) != 0){
+						UART_OutString("Error: append_file: can't write to file\r\n");
+						break;
+					} else {
+						UART_OutString("Write to file\r\n");
+					}
+				} else {
+          UART_OutString("Error: append_file: wrong arguments\r\n");
+        }
+				break;
+        
+      default:
+        usnprintf(msg_out, maxstrlen, "Error: unknown command '%s'.\r\n", cmd);
+        UART_OutString(msg_out);
+        break;
+			
+			case LOAD:
+        if(sscanf(args, "%s", msg_in) != 1){
+          UART_OutString("Error: invalid number of arguments\r\n");
+          break;
+        }
+        if (eFile_ROpen(msg_in)) {
+          UART_OutString("Error opening file for reading\r\n");
+          break;
+        }
+
+        UART_OutString("Loading file ");
+        UART_OutString(msg_in);
+        UART_OutString("\r\n");
+        
+        if (!exec_elf(msg_in, &env)) {
+          UART_OutString("Error loading file\r\n");
+          break;
+        }
+        UART_OutString("Success\r\n");
+        break;
+    }
+  }
+}

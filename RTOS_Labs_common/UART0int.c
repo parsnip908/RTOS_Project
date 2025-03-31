@@ -412,10 +412,12 @@ int length=0;
 char character;
   character = UART_InChar();
   while(character != CR){
-    if(character == BS){
+    if(character == BS || character == DEL){
       if(length){
         bufPt--;
         length--;
+        UART_OutChar(BS);
+        UART_OutChar(' ');
         UART_OutChar(BS);
       }
     }

@@ -21,6 +21,7 @@
  http://users.ece.utexas.edu/~valvano/
  */
 #include <stdint.h>
+
 // ***************** Timer5A_Init ****************
 // Activate Timer5 interrupts to run user task periodically
 // Inputs:  task is a pointer to a user function
@@ -28,5 +29,6 @@
 //          priority 0 (highest) to 7 (lowest)
 // Outputs: none
 void Timer5A_Init(void(*task)(void), uint32_t period, uint32_t priority);
+
 
 void Timer5A_Stop(void);

@@ -31,15 +31,16 @@ void (*WidePeriodicTask0)(void);   // user function
 //          period in units (1/clockfreq)
 //          priority 0 (highest) to 7 (lowest)
 // Outputs: none
-void WideTimer0A_Init(void(*task)(void), uint32_t period, uint32_t priority){
+void WideTimer0A_Init(void(*task)(void), uint32_t period_upper, uint32_t period_lower, uint32_t priority){
   SYSCTL_RCGCWTIMER_R |= 0x01;   // 0) activate WTIMER0
   WidePeriodicTask0 = task;      // user function
   WTIMER0_CTL_R = 0x00000000;    // 1) disable WTIMER0A during setup
-  WTIMER0_CFG_R = 0x00000000;    // 2) configure for 64-bit mode
+  WTIMER0_CFG_R = 0x00000004;    // 2) configure for 64-bit mode
   WTIMER0_TAMR_R = 0x00000002;   // 3) configure for periodic mode, default down-count settings
-  WTIMER0_TAILR_R = period-1;    // 4) reload value
-	WTIMER0_TBILR_R = 0;           // bits 63:32
+  WTIMER0_TAILR_R = period_lower-1;    // 4) reload value
+	WTIMER0_TBILR_R = period_upper;           // reload value bits 63:32
   WTIMER0_TAPR_R = 0;            // 5) bus clock resolution
+	WTIMER0_TBPR_R = 0;            // 5) same for upper 32 bits
   WTIMER0_ICR_R = 0x00000001;    // 6) clear WTIMER0A timeout flag TATORIS
   WTIMER0_IMR_R = 0x00000001;    // 7) arm timeout interrupt
   NVIC_PRI23_R = (NVIC_PRI23_R&0xFF00FF00)|(priority<<21); // priority 

@@ -1,0 +1,31 @@
+--cpu=Cortex-M4 --fpu=SoftVFP
+".\startup.o"
+".\launchpad.o"
+".\pll.o"
+".\lab5.o"
+".\os.o"
+".\st7735.o"
+".\interpreter.o"
+".\uart0int.o"
+".\edisk.o"
+".\efile.o"
+".\ff.o"
+".\osasm.o"
+".\adct0atrigger.o"
+".\adcswtrigger.o"
+".\adc.o"
+".\lpf.o"
+".\irdistance.o"
+".\wtimer0a.o"
+".\heap.o"
+".\loader.o"
+".\fifosimple.o"
+".\timer5a.o"
+".\timer4a.o"
+".\timer3a.o"
+".\stdlib_stub.o"
+".\ustdlib.o"
+--library_type=microlib --ro-base 0x00000000 --entry 0x00000000 --rw-base 0x20000000 --entry Reset_Handler --first __Vectors --strict
+--symdefs Lab5.def --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list ".\Lab5.map" -o .\Lab5.axf

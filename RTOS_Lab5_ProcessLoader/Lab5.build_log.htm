@@ -1,0 +1,101 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Tool Versions:</h2>
+IDE-Version: µVision V5.41.0.0
+Copyright (C) 2024 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: Siyuan Chen, University of Texas at Austin, LIC=----
+ 
+Tool Versions:
+Toolchain:       MDK-Lite  Version: 5.41.0.0
+Toolchain Path:  C:\Keil_v5\ARM\ARMCLANG\Bin
+C Compiler:      ArmClang.exe V6.22
+Assembler:       Armasm.exe V6.22
+Linker/Locator:  ArmLink.exe V6.22
+Library Manager: ArmAr.exe V6.22
+Hex Converter:   FromElf.exe V6.22
+CPU DLL:         SARMCM3.DLL V5.41.0.0
+Dialog DLL:      DCM.DLL V1.17.5.0
+Target DLL:      lmidk-agdi.dll V???
+Dialog DLL:      TCM.DLL V1.56.4.0
+ 
+<h2>Project:</h2>
+C:\Users\Tim Chen\Desktop\RTOS\Lab5Repository\lab-5-mo25443_sc64777\RTOS_Lab5_ProcessLoader\Lab5.uvprojx
+Project File Date:  03/23/2025
+
+<h2>Output:</h2>
+*** Using Compiler 'V6.22', folder: 'C:\Keil_v5\ARM\ARMCLANG\Bin'
+Rebuild target 'Lab5'
+assembling startup.s...
+assembling osasm.s...
+compiling Lab5.c...
+compiling ADCT0ATrigger.c...
+compiling ADCSWTrigger.c...
+../RTOS_Labs_common/Interpreter.c(88): warning: using the result of an assignment as a condition without parentheses [-Wparentheses]
+   88 |   while (c = *str++) {
+      |          ~~^~~~~~~~
+../RTOS_Labs_common/Interpreter.c(88): note: place parentheses around the assignment to silence this warning
+   88 |   while (c = *str++) {
+      |            ^       
+      |          (         )
+../RTOS_Labs_common/Interpreter.c(88): note: use '==' to turn this assignment into an equality comparison
+   88 |   while (c = *str++) {
+      |            ^
+      |            ==
+../RTOS_Labs_common/Interpreter.c(148): warning: label followed by a declaration is a C23 extension [-Wc23-extensions]
+  148 |         uint32_t adcval = ADC_In();
+      |         ^
+../RTOS_Labs_common/Interpreter.c(154): warning: label followed by a declaration is a C23 extension [-Wc23-extensions]
+  154 |         uint32_t systime = OS_MsTime();
+      |         ^
+../RTOS_Labs_common/Interpreter.c(204): warning: label followed by a declaration is a C23 extension [-Wc23-extensions]
+  204 |                                 int res = eFile_Format();
+      |                                 ^
+../RTOS_Labs_common/Interpreter.c(213): warning: label followed by a declaration is a C23 extension [-Wc23-extensions]
+  213 |                                 char* pt;
+      |                                 ^
+5 warnings generated.
+compiling Interpreter.c...
+compiling PLL.c...
+compiling ADC.c...
+compiling LaunchPad.c...
+compiling eFile.c...
+compiling IRDistance.c...
+compiling WTimer0A.c...
+compiling LPF.c...
+compiling UART0int.c...
+compiling eDisk.c...
+compiling heap.c...
+compiling OS.c...
+compiling loader.c...
+compiling FIFOsimple.c...
+compiling Timer5A.c...
+compiling Timer3A.c...
+compiling stdlib_stub.c...
+compiling Timer4A.c...
+compiling ST7735.c...
+compiling ustdlib.c...
+compiling ff.c...
+linking...
+.\Lab5.axf: error: L6047U: The size of this image (36288 bytes) exceeds the maximum allowed for this version of the linker
+Not enough information to produce a SYMDEFs file.
+Finished: 1 information, 0 warning, 0 error and 1 fatal error messages.
+".\Lab5.axf" - 1 Error(s), 5 Warning(s).
+
+<h2>Software Packages used:</h2>
+
+Package Vendor: Keil
+                http://www.keil.com/pack/Keil.TM4C_DFP.1.1.0.pack
+                Keil::TM4C_DFP@1.1.0
+                Texas Instruments Tiva C Series Device Support and Examples
+
+<h2>Collection of Component include folders:</h2>
+  C:/Users/Tim Chen/AppData/Local/Arm/Packs/Keil/TM4C_DFP/1.1.0/Device/Include/TM4C123
+
+<h2>Collection of Component Files used:</h2>
+Target not created.
+Build Time Elapsed:  00:00:03
+</pre>
+</body>
+</html>

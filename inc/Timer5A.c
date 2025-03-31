@@ -32,27 +32,34 @@ void (*PeriodicTask5)(void);   // user function
 //          priority 0 (highest) to 7 (lowest)
 // Outputs: none
 void Timer5A_Init(void(*task)(void), uint32_t period, uint32_t priority){
-  SYSCTL_RCGCTIMER_R |= 0x20;   // 0) activate TIMER5
+  SYSCTL_RCGCTIMER_R |= SYSCTL_RCGCTIMER_R5;   // 0) activate TIMER5
   PeriodicTask5 = task;         // user function
-  TIMER5_CTL_R = 0x00000000;    // 1) disable TIMER5A during setup
-  TIMER5_CFG_R = 0x00000000;    // 2) configure for 32-bit mode
-  TIMER5_TAMR_R = 0x00000002;   // 3) configure for periodic mode, default down-count settings
-  TIMER5_TAILR_R = period-1;    // 4) reload value
-  TIMER5_TAPR_R = 0;            // 5) bus clock resolution
-  TIMER5_ICR_R = 0x00000001;    // 6) clear TIMER5A timeout flag
-  TIMER5_IMR_R = 0x00000001;    // 7) arm timeout interrupt
-  NVIC_PRI23_R = (NVIC_PRI23_R&0xFFFFFF00)|(priority<<5); // priority 
-// interrupts enabled in the main program after all devices initialized
-// vector number 108, interrupt number 92
-  NVIC_EN2_R = 1<<28;           // 9) enable IRQ 92 in NVIC
-  TIMER5_CTL_R = 0x00000001;    // 10) enable TIMER5A
+
+  // Wait for the Timer 0 to be ready
+  while((SYSCTL_PRTIMER_R & SYSCTL_PRTIMER_R5) == 0) {}
+
+  TIMER5_CTL_R = ~TIMER_CTL_TAEN;    // 1) disable TIMER5A during setup
+  TIMER5_CFG_R = TIMER_CFG_32_BIT_TIMER;    // 2) configure for 32-bit mode
+  TIMER5_TAMR_R = TIMER_TAMR_TAMR_PERIOD;   // 3) configure for periodic mode, default down-count settings
+  TIMER5_TAILR_R = period-1;          // 4) reload value
+  TIMER5_TAPR_R = 0;                  // 5) bus clock resolution (no prescale)
+  TIMER5_ICR_R = TIMER_ICR_TATOCINT;  // 6) clear TIMER3A timeout flag // is this necessary?
+  TIMER5_IMR_R = TIMER_IMR_TATOIM;    // 7) enable interrupt on timer5a
+  
+  // page 105 and 136
+  NVIC_PRI23_R = (NVIC_PRI23_R&0xFFFFFF00)|(priority<<5); // priority
+
+  // vector number 108, interrupt number 92
+  NVIC_EN2_R = 1U<<(92%32);      // 9) enable interrupt 70 in NVIC
+  TIMER5_CTL_R = TIMER_CTL_TAEN;    // 10) enable TIMER5A
 }
 
 void Timer5A_Handler(void){
   TIMER5_ICR_R = TIMER_ICR_TATOCINT;// acknowledge TIMER5A timeout
   (*PeriodicTask5)();               // execute user task
 }
-void Timer5_Stop(void){
-  NVIC_DIS2_R = 1<<28;          // 9) disable interrupt 92 in NVIC
-  TIMER5_CTL_R = 0x00000000;    // 10) disable timer5A
+
+void Timer5A_Stop(void){
+  NVIC_DIS2_R = 0x00000040;        // 9) disable interrupt 70 in NVIC
+  TIMER5_CTL_R = 0x00000000;       // 10) disable timer5A
 }

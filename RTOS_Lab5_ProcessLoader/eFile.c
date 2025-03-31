@@ -11,7 +11,7 @@
 
 
 // Display semaphore
-extern sem_t LCDFree;  // this should really be handled in eDisk.c, not eFile.c
+extern Sema4Type LCDFree;  // this should really be handled in eDisk.c, not eFile.c
 
 // Static file system objects
 static FATFS g_sFatFs;
