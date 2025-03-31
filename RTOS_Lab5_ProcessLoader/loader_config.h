@@ -56,7 +56,7 @@ typedef void(entry_t)(void);
 
 #define LOADER_FD_T FIL *
 FIL* LOADER_OPEN_FOR_RD(const TCHAR* path) { 
-	static FIL fd;		// only one open file at a time
+  static FIL fd;    // only one open file at a time
   if(f_open(&fd, path, FA_READ)) return NULL;
   return &fd;
 }
@@ -75,8 +75,8 @@ UINT LOADER_WRITE(FIL* fd, void* buffer, size_t size) { UINT w;
 
 #define LOADER_ALIGN_ALLOC(size, align, perm) Heap_Malloc(size)
 #define LOADER_FREE(ptr) Heap_Free(ptr)
-void LOADER_CLEAR(void* ptr, size_t size) { //int i; int32_t *p;
-  for(int32_t *p = ptr, int i = 0; i < size/sizeof(int32_t); i++, p++) *p = 0;
+void LOADER_CLEAR(void* ptr, size_t size) { int i; int32_t *p;
+  for(p = ptr, i = 0; i < size/sizeof(int32_t); i++, p++) *p = 0;
 }
 #define LOADER_STREQ(s1, s2) (strcmp(s1, s2) == 0)
 
