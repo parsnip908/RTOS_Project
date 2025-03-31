@@ -33,7 +33,7 @@
 #include "../RTOS_Labs_common/heap.h"
 
 
-#define HEAP_SIZE 4096
+#define HEAP_SIZE 1024
 
 //Conversion from bytes to words (round up)
 int32_t BYTES_TO_WORDS(int32_t bytes){
@@ -325,7 +325,7 @@ int32_t Heap_Stats(heap_stats_t *stats)
 		
 		//Test if block is free
 		if(GlobalHeap[curPos] > 0){ //Allocated
-			stats->used = stats->used + blockSizeWords * 4; //Convert to byte (x4)
+			stats->used = stats->used + blockSizeWords * 4 -8; //Convert to byte (x4)
 		}else{ //Free
 			stats->free = stats->free + blockSizeWords * 4 - 8; //For every free block, the headers (2 words) are not free 
 		}
