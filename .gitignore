@@ -1,0 +1,29 @@
+*.d
+*.o
+RTOS_Lab5_ProcessLoader/Lab5.build_log.htm
+RTOS_Lab5_ProcessLoader/Lab5.uvguix.pkhar
+# RTOS_Lab5_ProcessLoader/Lab5_Lab3.dep
+RTOS_Lab5_ProcessLoader/startup.lst
+RTOS_Lab5_ProcessLoader/pid_stm32.lst
+RTOS_Lab5_ProcessLoader/cr4_fft_64_stm32.lst
+RTOS_Lab5_ProcessLoader/osasm.lst
+RTOS_Lab5_ProcessLoader/Lab5.map
+RTOS_Lab5_ProcessLoader/Lab5.lnp
+RTOS_Lab5_ProcessLoader/Lab5.htm
+RTOS_Lab5_ProcessLoader/Lab5.axf
+RTOS_Lab5_ProcessLoader/Lab5_Lab5.dep
+
+
+RTOS_Lab5_User/User.build_log.htm
+RTOS_Lab5_User/user.uvguix.pkhar
+# RTOS_Lab5_User/Lab5_Lab3.dep
+RTOS_Lab5_User/startup.lst
+RTOS_Lab5_User/display.lst
+RTOS_Lab5_User/pid_stm32.lst
+RTOS_Lab5_User/cr4_fft_64_stm32.lst
+RTOS_Lab5_User/osasm.lst
+RTOS_Lab5_User/User.map
+RTOS_Lab5_User/User.lnp
+RTOS_Lab5_User/User.htm
+# RTOS_Lab5_User/User.axf
+RTOS_Lab5_User/User_User.dep
