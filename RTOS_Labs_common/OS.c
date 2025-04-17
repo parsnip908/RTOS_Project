@@ -467,6 +467,7 @@ int OS_AddThread_User(void(*task)(void), uint32_t stackSize, uint32_t priority){
 // Outputs: 1 if successful, 0 if this process can not be added
 // This function will be needed for Lab 5
 // In Labs 2-4, this function can be ignored
+// NOTE: Assume those are user processes
 int OS_AddProcess(void(*entry)(void), void *text, void *data, 
   unsigned long stackSize, unsigned long priority){
   // put Lab 5 solution here
@@ -494,7 +495,7 @@ int OS_AddProcess(void(*entry)(void), void *text, void *data,
 
   newPCB = &pcbs[i];
 
-  if(!OS_AddThread(entry, stackSize, priority))
+  if(!OS_AddThread_User(entry, stackSize, priority))
   {
     printf("addthread issue in addproc\n");
     Heap_Free(text);
@@ -540,6 +541,12 @@ void OS_Sleep(uint32_t sleepTime){
   RunPt->status = ASLEEP;
   queue_enqueue(&special_queue, RunPt);
   // ctx switch with pendsv
+  //TODO: Do somthing different with user vs kernel thread (SVC handler or smth)
+  if(RunPt->access == USER){
+    //User thread
+  } else {
+    //Kernel thread
+  }
   NVIC_INT_CTRL_R |= NVIC_INT_CTRL_PEND_SV;
   SysTick_Clear();
   intDisableTimerEnd();
@@ -589,6 +596,12 @@ void OS_Kill(void){
   queue_enqueue(&special_queue, RunPt);
   //trigger pendsv
   //  context will switch, execution will never come back
+  //TODO: Do somthing different with user vs kernel thread (SVC handler or smth)
+  if(RunPt->access == USER){
+    //User thread
+  } else {
+    //Kernel thread
+  }
   NVIC_INT_CTRL_R |= NVIC_INT_CTRL_PEND_SV;
   SysTick_Clear();
   intDisableTimerEnd();
@@ -623,6 +636,12 @@ void OS_Suspend(void){
 
   //trigger pendsv
   //  context will switch, execution will come back here eventually
+  //TODO: Do somthing different with user vs kernel thread (SVC handler or smth)
+  if(RunPt->access == USER){
+    //User thread
+  } else {
+    //Kernel thread
+  }
   NVIC_INT_CTRL_R |= NVIC_INT_CTRL_PEND_SV;
   SysTick_Clear();
   intDisableTimerEnd();
@@ -642,6 +661,12 @@ void OS_Block(void)
   RunPt->status = BLOCKED;
   queue_enqueue(&special_queue, RunPt);
 
+  //TODO: Do somthing different with user vs kernel thread (SVC handler or smth)
+  if(RunPt->access == USER){
+    //User thread
+  } else {
+    //Kernel thread
+  }
   NVIC_INT_CTRL_R |= NVIC_INT_CTRL_PEND_SV;
   SysTick_Clear();
   intDisableTimerEnd();
