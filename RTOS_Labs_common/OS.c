@@ -332,6 +332,7 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   tcbs[i].msTime = 0;
   tcbs[i].status = READY;
   tcbs[i].sp = &stacks[i][STACK_SIZE-(16*4)];
+  tcbs[i].access = KERNEL;
   if(newPCB)
   {
     tcbs[i].parent = newPCB;
@@ -368,6 +369,80 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
     stack_init[43-j] = (uint8_t) (data_uintptr >> (8*j));
   }
 
+
+  for(int j = 0; j<16*4; j++)
+  {
+    stacks[i][STACK_SIZE-1-j] = stack_init[j];
+  }
+
+  queue_enqueue(&ready_queues[tcbs[i].priority], (void*)&tcbs[i]);
+
+  intDisableTimerEnd();
+  EnableInterrupts();
+     
+  return 1;
+};
+
+//******** OS_AddThread_User *************** 
+// Add user thread
+int OS_AddThread_User(void(*task)(void), uint32_t stackSize, uint32_t priority){
+  // put Lab 2 (and beyond) solution here
+  if(numThreads >= MAXTHREADS){
+    return 0;
+  }
+
+  DisableInterrupts();
+  intDisableTimerStart();
+  int i;
+  //find first open TCB block
+  for(i=0; i<MAXTHREADS; i++)
+    if(tcbs[i].status == EXITED && tcbs[i].sp == NULL) break;
+  
+  PD3 ^= 0x08;
+  // int i = numThreads;
+  numThreads++;
+  tcbs[i].id = i;
+  tcbs[i].priority = (priority < MIN_PRIORITY) ? priority : MIN_PRIORITY-1;
+  tcbs[i].sleep = 0;
+  tcbs[i].msTime = 0;
+  tcbs[i].status = READY;
+  tcbs[i].sp = &stacks[i][STACK_SIZE-(16*4)];
+  tcbs[i].access = USER;
+  if(newPCB)
+  {
+    tcbs[i].parent = newPCB;
+    newPCB = NULL;
+  }
+  else if(RunPt)
+    tcbs[i].parent = RunPt->parent;
+  else
+    tcbs[i].parent = NULL;
+
+  uint32_t task_uintptr = (uint32_t) task;
+  uint32_t kill_uintptr = (uint32_t) &OS_Kill;
+  uint32_t data_uintptr = 0x09090909;
+  if(tcbs[i].parent)
+  {
+    data_uintptr = (uint32_t) tcbs[i].parent->data;
+    int k;
+    for(k=0; k<THREADSPERPROC; k++)
+      if(tcbs[i].parent->tcbs[k] == NULL) break;
+    if (k ==THREADSPERPROC)
+    {
+      tcbs[i].sp = NULL;
+      tcbs[i].status = EXITED;
+      numThreads--;
+      return 0;
+    }
+    tcbs[i].parent->tcbs[k] = &tcbs[i];
+  }
+
+  for(int j = 0; j<4; j++)
+  {
+    stack_init[7-j] = (uint8_t) (task_uintptr >> (8*j));
+    stack_init[11-j] = (uint8_t) (kill_uintptr >> (8*j));
+    stack_init[43-j] = (uint8_t) (data_uintptr >> (8*j));
+  }
 
   for(int j = 0; j<16*4; j++)
   {

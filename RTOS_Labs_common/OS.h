@@ -46,6 +46,11 @@
 
 typedef struct pcb PCB_t;
 
+typedef enum {
+  USER,
+  KERNEL,
+} Access;
+
 typedef struct __attribute__((packed)) tcb {
   uint8_t *sp;
   uint8_t id;
@@ -54,6 +59,7 @@ typedef struct __attribute__((packed)) tcb {
   uint64_t sleep;
   uint32_t msTime;
   PCB_t* parent;
+  Access access;
 } TCB_t;
 
 struct pcb {
@@ -133,6 +139,9 @@ int OS_bSignal(sem_t *sem);
 // In Lab 2, you can ignore both the stackSize and priority fields
 // In Lab 3, you can ignore the stackSize fields
 int OS_AddThread(void(*task)(void), 
+   uint32_t stackSize, uint32_t priority);
+
+int OS_AddThread_User(void(*task)(void), 
    uint32_t stackSize, uint32_t priority);
 
 //******** OS_Id *************** 
