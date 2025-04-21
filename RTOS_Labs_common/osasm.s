@@ -276,3 +276,26 @@ Timer5B_Handler
 
     ALIGN
     END
+
+;********************************************************************************************************
+;                                         SET MPU PRIVILEGE
+;                                     void MPU_SetPrivilegeASM(void)
+;                                     void MPU_SetUnPrivilegeASM(void)
+;
+; Note(s) : Set MPU to privileged and unprivileged modes
+; MSR and MRS are used to write and read to special CPU registers
+; Do we need to save register states?
+;********************************************************************************************************
+MPU_SetUnPrivilegeASM
+        MRS     R0, CONTROL         ; Read CONTROL register
+        ORR     R0, R0, #1          ; Set bit 0 of control register to 1 (nPRIV = 1, unprivileged)
+        MSR     CONTROL, R0         ; Write value back to CONTROL register
+        ISB                         ; Instruction Sync Barrier. Make sure this is done before returning
+        BX      LR                  ; Return from function
+
+MPU_SetPrivilegeASM
+        MRS     R0, CONTROL         ; Read CONTROL register
+        BIC     R0, R0, #1          ; Clear bit 0 of control register (nPRIV = 0, privileged)
+        MSR     CONTROL, R0         ; Write value back to CONTROL register
+        ISB                         ; Instruction Sync Barrier. Make sure this is done before returning
+        BX      LR                  ; Return from function

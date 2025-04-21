@@ -31,6 +31,7 @@
 #include "../inc/driverlib/timer.h"
 #include "../inc/driverlib/interrupt.h"
 #include "../inc/driverlib/systick.h"
+#include "../inc/driverlib/mpu.h"
 
 #define MAXPROCS  4
 #define MAXTHREADS  12
@@ -115,6 +116,32 @@ void intDisableTimerEnd(void)
   // PD1 &= ~0x02;
   timerRunning = false;
 }
+/*------------------------------------------------------------------------------
+  MPU fault handler
+  Should be initialized to trigger on a MPU fault
+ *------------------------------------------------------------------------------*/
+void MPU_FaultHandler(void) {
+  //Implement fault behavior
+}
+
+//Switch privilege to user and set global
+void MPU_SetUnPrivilege(void) {
+  MPU_SetUnPrivilegeASM();
+  RunPt_Access = USER;
+}
+
+//Switch privilege to kernel and set global
+void MPU_SetPrivilege(void) {
+  MPU_SetPrivilegeASM();
+  RunPt_Access = KERNEL;
+}
+
+/*------------------------------------------------------------------------------
+  MPU set functions
+  Should set privilege access bit and record in global var
+ *------------------------------------------------------------------------------*/
+//MPU Globals
+Access RunPt_Access = USER;
 
 /*------------------------------------------------------------------------------
   Systick Interrupt Handler
