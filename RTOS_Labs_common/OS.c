@@ -136,6 +136,18 @@ void MPU_SetPrivilege(void) {
   RunPt_Access = KERNEL;
 }
 
+//Global vars for defining what regions to set (subject to change)
+#define REGION_BASE_ADDR 0x0
+#define REGION_FLAGS (MPU_RGN_SIZE_1G | MPU_RGN_PERM_EXEC | MPU_RGN_PERM_PRV_RW_USR_NO | MPU_RGN_ENABLE)
+
+//Initialize fault handler and MPU regions
+void MPU_Init(void){
+  //Set fault handler (interrupt)
+  MPUIntRegister(MPU_FaultHandler);
+
+  //Set whatever region is needed
+  MPURegionSet(0, REGION_BASE_ADDR, REGION_FLAGS);
+}
 /*------------------------------------------------------------------------------
   MPU set functions
   Should set privilege access bit and record in global var
