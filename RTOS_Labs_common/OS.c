@@ -136,17 +136,28 @@ void MPU_SetPrivilege(void) {
   RunPt_Access = KERNEL;
 }
 
-//Global vars for defining what regions to set (subject to change)
-#define REGION_BASE_ADDR 0x0
-#define REGION_FLAGS (MPU_RGN_SIZE_1G | MPU_RGN_PERM_EXEC | MPU_RGN_PERM_PRV_RW_USR_NO | MPU_RGN_ENABLE)
+//Global vars for defining what regions to set 
+//For MPU initialization, regions 0 and 7 are usually used for general memory access
+//Peripheral region: protects peripheral registers, makes sure only kernel threads can access them
+#define PERIPHERAL_REGION 0
+#define PERIPHERAL_BASE_ADDR 0x40000000
+//                       Size of region     | no code execution   | privileged (kernel) read write | enable region 
+#define PERIPHERAL_FLAGS (MPU_RGN_SIZE_512M | MPU_RGN_PERM_NOEXEC | MPU_RGN_PERM_PRV_RW_USR_NO     | MPU_RGN_ENABLE)
+
+//Background region: protects entire region, create privileged RW access for code not covered by other regions, separate kernel and user
+#define BACKGROUND_REGION 7
+#define BACKGROUND_BASE_ADDR 0x0000000
+//                       Size of region   | allow code execution | privileged (kernel) read write | enable region 
+#define BACKGROUND_FLAGS (MPU_RGN_SIZE_4G | MPU_RGN_PERM_EXEC    | MPU_RGN_PERM_PRV_RW_USR_NO     | MPU_RGN_ENABLE)
 
 //Initialize fault handler and MPU regions
 void MPU_Init(void){
   //Set fault handler (interrupt)
   MPUIntRegister(MPU_FaultHandler);
 
-  //Set whatever region is needed
-  MPURegionSet(0, REGION_BASE_ADDR, REGION_FLAGS);
+  //Set whatever region is needed (subject to change)
+  MPURegionSet(PERIPHERAL_REGION, PERIPHERAL_BASE_ADDR, PERIPHERAL_FLAGS);
+  MPURegionSet(BACKGROUND_REGION, BACKGROUND_BASE_ADDR, BACKGROUND_FLAGS);
 }
 /*------------------------------------------------------------------------------
   MPU set functions
@@ -339,6 +350,13 @@ void OS_Init(void){
   EnableInterrupts();
 
 }; 
+
+//******** MPU regions  *************** 
+// TM4C hardware limits MPU to 8 regions (is this right?)
+// Add a special user region of the MPU for each additional process (its threads inherit the region)
+// Independent threads don't get MPU region, they just get kernel permission
+// When you start a thread, enable its specific MPU region access
+// When switching threads, disable a thread's MPU region and enable the next thread's MPU region
 
 //******** OS_AddThread *************** 
 // add a foregound thread to the scheduler
