@@ -33,8 +33,6 @@
 #include "../inc/driverlib/systick.h"
 #include "../inc/driverlib/mpu.h"
 
-#define MAXPROCS  4
-#define MAXTHREADS  12
 #define STACK_SIZE 256*4
 #define MIN_PRIORITY 4
 
@@ -51,13 +49,16 @@
 // #define TIME_1MS 80000
 // #define OS_PROFILE
 
-
-TCB_t tcbs[MAXTHREADS];  
+//Thread globals for dynamic allocation
+TCB_t* tcbs; //Pointer to TCB
 int numThreads = 0;
-uint8_t stacks[MAXTHREADS][STACK_SIZE];
+uint32_t numThreadsCap = 10; //Initial capacity of threads (Serves as MAXTHREADS but dynamic)
+uint8_t (*stacks)[STACK_SIZE]; //Pointer to TCB stacks
 
-PCB_t pcbs[MAXPROCS];
-// int numProcs = 0;
+//Process globals for dynamic allocation
+PCB_t* pcbs; //Pointer to PCB
+int numProcs = 0;
+uint32_t numProcsCap = 3; //Initial capacity of processes (Serves as MAXPROCS but dynamic)
 PCB_t* newPCB = NULL;
 
 queue_t ready_queues[MIN_PRIORITY];
@@ -95,6 +96,63 @@ uint32_t maxIntDisableTime;
 uint64_t totalIntDisableTime;
 uint64_t startTime;
 bool timerRunning = false;
+
+/*------------------------------------------------------------------------------
+  Helper functions to increase thread and process cap (1 on success, 0 on failure)
+ *------------------------------------------------------------------------------*/
+int expandThreads(void){
+	//Reallocate with new capacity
+	uint32_t newThreadCap = numThreadsCap + 5;
+	TCB_t* newTcbs = (TCB_t*)Heap_Realloc(tcbs, newThreadCap * sizeof(TCB_t));
+  uint8_t (*newStacks)[STACK_SIZE] = (uint8_t (*)[STACK_SIZE])Heap_Realloc(stacks, newThreadCap * sizeof(uint8_t[STACK_SIZE]));
+
+
+	//Test if thread allocation successful
+	if(newTcbs == NULL){
+		//Fail on TCB realloc
+		return 0;
+	}
+  else if(newStacks == NULL){
+    //Fail on stack realloc, undo TCB realloc to new size, then return 0
+    TCB_t* newTcbs = (TCB_t*)Heap_Realloc(tcbs, numThreadsCap * sizeof(TCB_t));
+    TCB_t* tcbs = newTcbs;
+    return 0;
+  }
+	else{
+		//Success for both TCB and stacks
+		tcbs = newTcbs;
+    //Initialize empty TCBs
+    memset((void*) tcbs, 0, sizeof(TCB_t)*numThreadsCap);
+    for (int i = 0; i < numThreadsCap; ++i){
+      tcbs[i].status = EXITED;
+    }
+    //Set stacks
+    stacks = newStacks;
+		//Set new cap
+		numThreadsCap = newThreadCap;
+		return 1;
+	}
+}
+int expandProcesses(void){
+	//Reallocate with new capacity
+	uint32_t newProcCap = numProcsCap + 10;
+	PCB_t* newPcbs = (PCB_t*)Heap_Realloc(pcbs, newProcCap * sizeof(PCB_t));
+	
+	//Test if successful
+	if(newPcbs == NULL){
+		//Fail
+		return 0;
+	}
+	else{
+		//Success
+		pcbs = newPcbs;
+		//Initialize empty PCBs
+    memset((void*) pcbs, 0, sizeof(PCB_t)*numProcsCap);
+		//Set new cap
+		numProcsCap = newProcCap;
+		return 1;
+	}
+}
 
 void intDisableTimerStart(void)
 {
@@ -292,7 +350,7 @@ void OS_IdleThread(void)
       //check sleeping
       //delete exited
     queue_iterate(&special_queue, &OS_IdleIterator);
-    for (int i = 0; i < MAXTHREADS; ++i)
+    for (int i = 0; i < numThreadsCap; ++i)
     {
       if(tcbs[i].status == ASLEEP)
         OS_IdleIterator(&special_queue, &tcbs[i]);
@@ -326,8 +384,16 @@ void OS_Init(void){
     queue_create(&ready_queues[i]);
   queue_create(&special_queue);
 
-  memset((void*) tcbs, 0, sizeof(TCB_t)*MAXTHREADS);
-  for (int i = 0; i < MAXTHREADS; ++i)
+  //Initialize TCBs and PCBs
+  pcbs = (PCB_t*)Heap_Malloc(numProcsCap * sizeof(PCB_t));
+  tcbs = (TCB_t*)Heap_Malloc(numThreadsCap * sizeof(TCB_t));
+  
+  //Initialize empty PCBs
+  memset((void*) pcbs, 0, sizeof(PCB_t)*numProcsCap);
+
+  //Initialize empty TCBs
+  memset((void*) tcbs, 0, sizeof(TCB_t)*numThreadsCap);
+  for (int i = 0; i < numThreadsCap; ++i)
   {
     tcbs[i].status = EXITED;
   }
@@ -371,15 +437,19 @@ void OS_Init(void){
 // In Lab 3, you can ignore the stackSize fields
 int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   // put Lab 2 (and beyond) solution here
-  if(numThreads >= MAXTHREADS){
-    return 0;
+
+  //Check if space to put new thread
+  if(numThreads >= numThreadsCap){
+    if(expandThreads() == 0){
+      return 0;
+    }
   }
 
   DisableInterrupts();
   intDisableTimerStart();
   int i;
   //find first open TCB block
-  for(i=0; i<MAXTHREADS; i++)
+  for(i=0; i<numThreadsCap; i++)
     if(tcbs[i].status == EXITED && tcbs[i].sp == NULL) break;
   
   PD3 ^= 0x08;
@@ -446,15 +516,19 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
 // Add thread with user permissions, helper function for addprocess
 int OS_AddThread_Process(void(*task)(void), uint32_t stackSize, uint32_t priority){
   // put Lab 2 (and beyond) solution here
-  if(numThreads >= MAXTHREADS){
-    return 0;
+  
+  //Check if space to put new thread
+  if(numThreads >= numThreadsCap){
+    if(expandThreads() == 0){
+      return 0;
+    }
   }
 
   DisableInterrupts();
   intDisableTimerStart();
   int i;
   //find first open TCB block
-  for(i=0; i<MAXTHREADS; i++)
+  for(i=0; i<numThreadsCap; i++)
     if(tcbs[i].status == EXITED && tcbs[i].sp == NULL) break;
   
   PD3 ^= 0x08;
@@ -530,16 +604,22 @@ int OS_AddThread_Process(void(*task)(void), uint32_t stackSize, uint32_t priorit
 int OS_AddProcess(void(*entry)(void), void *text, void *data, 
   unsigned long stackSize, unsigned long priority){
   // put Lab 5 solution here
-  // if(numProcs >= MAXPROCS)
+  
+  //Check if space to put new process
+  if(numProcs >= numProcsCap){
+    if(expandProcesses() == 0){
+      return 0;
+    }
+  }
 
   DisableInterrupts();
   intDisableTimerStart();
   int i;
   //find first open PCB block
-  for(i=0; i<MAXPROCS; i++)
+  for(i=0; i<numProcsCap; i++)
     if(pcbs[i].text == NULL) break;
 
-  if(i >= MAXPROCS)
+  if(i >= numProcsCap)
   {
     printf("too many procs\n");
 
@@ -600,6 +680,8 @@ void OS_Sleep(uint32_t sleepTime){
   RunPt->status = ASLEEP;
   queue_enqueue(&special_queue, RunPt);
   // ctx switch with pendsv
+
+  //****** FOR MPU ********
   //TODO: Do somthing different with user vs kernel thread (SVC handler or smth)
   if(RunPt->access == USER){
     //User thread
@@ -655,6 +737,8 @@ void OS_Kill(void){
   queue_enqueue(&special_queue, RunPt);
   //trigger pendsv
   //  context will switch, execution will never come back
+
+  //****** FOR MPU ********
   //TODO: Do somthing different with user vs kernel thread (SVC handler or smth)
   if(RunPt->access == USER){
     //User thread
@@ -695,6 +779,8 @@ void OS_Suspend(void){
 
   //trigger pendsv
   //  context will switch, execution will come back here eventually
+
+  //****** FOR MPU ********
   //TODO: Do somthing different with user vs kernel thread (SVC handler or smth)
   if(RunPt->access == USER){
     //User thread
@@ -720,6 +806,7 @@ void OS_Block(void)
   RunPt->status = BLOCKED;
   queue_enqueue(&special_queue, RunPt);
 
+  //****** FOR MPU ********
   //TODO: Do somthing different with user vs kernel thread (SVC handler or smth)
   if(RunPt->access == USER){
     //User thread
