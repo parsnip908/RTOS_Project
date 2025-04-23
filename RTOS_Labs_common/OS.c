@@ -115,16 +115,16 @@ int expandThreads(void){
   else if(newStacks == NULL){
     //Fail on stack realloc, undo TCB realloc to new size, then return 0
     TCB_t* newTcbs = (TCB_t*)Heap_Realloc(tcbs, numThreadsCap * sizeof(TCB_t));
-    TCB_t* tcbs = newTcbs;
+    tcbs = newTcbs;
     return 0;
   }
 	else{
 		//Success for both TCB and stacks
 		tcbs = newTcbs;
-    //Initialize empty TCBs
-    memset((void*) tcbs, 0, sizeof(TCB_t)*numThreadsCap);
-    for (int i = 0; i < numThreadsCap; ++i){
+    //Initialize new empty TCBs
+    for (int i = numThreadsCap; i < newThreadCap; ++i){
       tcbs[i].status = EXITED;
+      tcbs[i].sp = NULL;
     }
     //Set stacks
     stacks = newStacks;
@@ -147,7 +147,10 @@ int expandProcesses(void){
 		//Success
 		pcbs = newPcbs;
 		//Initialize empty PCBs
-    memset((void*) pcbs, 0, sizeof(PCB_t)*numProcsCap);
+    for (int i = numProcsCap; i < newProcCap; ++i){
+      pcbs[i].text = NULL;
+      pcbs[i].data = NULL;
+    }
 		//Set new cap
 		numProcsCap = newProcCap;
 		return 1;
