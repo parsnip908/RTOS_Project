@@ -348,7 +348,9 @@ void OS_Init(void){
   printf("OS_init\n");
   // intDisableTimerEnd();
   EnableInterrupts();
-
+  
+  //Init MPU
+  MPU_Init();
 }; 
 
 //******** MPU regions  *************** 
@@ -389,7 +391,7 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   tcbs[i].msTime = 0;
   tcbs[i].status = READY;
   tcbs[i].sp = &stacks[i][STACK_SIZE-(16*4)];
-  tcbs[i].access = KERNEL;
+  tcbs[i].access = KERNEL; //For MPU
   if(newPCB)
   {
     tcbs[i].parent = newPCB;
@@ -440,9 +442,9 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   return 1;
 };
 
-//******** OS_AddThread_User *************** 
-// Add user thread
-int OS_AddThread_User(void(*task)(void), uint32_t stackSize, uint32_t priority){
+//******** OS_AddThread_Process *************** 
+// Add thread with user permissions, helper function for addprocess
+int OS_AddThread_Process(void(*task)(void), uint32_t stackSize, uint32_t priority){
   // put Lab 2 (and beyond) solution here
   if(numThreads >= MAXTHREADS){
     return 0;
@@ -464,7 +466,7 @@ int OS_AddThread_User(void(*task)(void), uint32_t stackSize, uint32_t priority){
   tcbs[i].msTime = 0;
   tcbs[i].status = READY;
   tcbs[i].sp = &stacks[i][STACK_SIZE-(16*4)];
-  tcbs[i].access = USER;
+  tcbs[i].access = USER; //For MPU
   if(newPCB)
   {
     tcbs[i].parent = newPCB;
@@ -552,7 +554,7 @@ int OS_AddProcess(void(*entry)(void), void *text, void *data,
 
   newPCB = &pcbs[i];
 
-  if(!OS_AddThread_User(entry, stackSize, priority))
+  if(!OS_AddThread_Process(entry, stackSize, priority))
   {
     printf("addthread issue in addproc\n");
     Heap_Free(text);
