@@ -33,18 +33,15 @@
 #include "../RTOS_Labs_common/heap.h"
 
 
-#define HEAP_SIZE 4096
+#define HEAP_SIZE 1024
 
-typedef struct
-{
-    int16_t prev_size; // Size of the previous block
-    int16_t next_size; // Size of the next block
-} BlockHeader;
+//Conversion from bytes to words (round up)
+int32_t BYTES_TO_WORDS(int32_t bytes){
+	return (bytes + 3) / 4;
+}
 
-
-uint8_t heap[HEAP_SIZE];
-void* heap_start = ((void*)heap);
-void* heap_end = ((void*)(heap+HEAP_SIZE));
+//Global vars
+int32_t GlobalHeap[HEAP_SIZE]; //Should this be unsigned or signed?
 
 //******** Heap_Init *************** 
 // Initialize the Heap
@@ -54,10 +51,13 @@ void* heap_end = ((void*)(heap+HEAP_SIZE));
 //  is allocated.
 int32_t Heap_Init(void)
 {
-    BlockHeader* initial_block = (BlockHeader*)heap_start;
-    initial_block->prev_size = 0;
-    initial_block->next_size = (int) sizeof(BlockHeader) - HEAP_SIZE;
-    return 0;
+    //Go thru entire heap, make whole thing a free slot
+	for(int i = 0; i < HEAP_SIZE; i++){
+		GlobalHeap[i] = 0;
+	}
+	GlobalHeap[0] = -1 * HEAP_SIZE;
+	GlobalHeap[HEAP_SIZE - 1] = -1 * HEAP_SIZE;
+    return 0; 
 }
 
 
@@ -69,41 +69,50 @@ int32_t Heap_Init(void)
 //   if there isn't sufficient space to satisfy allocation request
 void* Heap_Malloc(int32_t desiredBytes)
 {
-    if (desiredBytes <= 0) return NULL;
-    
-    if (desiredBytes % 4)
-        desiredBytes += 4 - desiredBytes % 4;
-
-    long sr = StartCritical();
-
-    BlockHeader* current = (BlockHeader*)heap_start;
-    while ((uint8_t*)current < heap + HEAP_SIZE)
-    {
-        if (current->next_size < 0 && -current->next_size >= desiredBytes)
-        {
-            int remaining = -current->next_size - desiredBytes - sizeof(BlockHeader);
-
-            if (remaining > (int) sizeof(BlockHeader))
-            {
-                current->next_size = desiredBytes;
-                BlockHeader* next = (BlockHeader*)((uint8_t*)current + sizeof(BlockHeader) + desiredBytes);
-                next->prev_size = desiredBytes;
-                next->next_size = -remaining;
-            }
-            else
-            {
-                current->next_size *= -1;
-                BlockHeader* next = (BlockHeader*)((uint8_t*)current + sizeof(BlockHeader) + current->next_size);
-                if((uint8_t*)next < heap + HEAP_SIZE)
-                    next->prev_size = current->next_size;
-            }
-            EndCritical(sr);
-            return (uint8_t*)current + sizeof(BlockHeader);
-        }
-        current = (BlockHeader*)((uint8_t*)current + abs(current->next_size) + sizeof(BlockHeader));
-    }
-    EndCritical(sr);
-    return NULL;
+   //Edge case: invalid size
+	if(desiredBytes <= 0){return 0;}
+	
+	//Size calculation
+	int32_t curPos = 0; //Value: Current index of search, should point to the start header of a block Init: 0, start header of first block
+	int32_t desiredWords = BYTES_TO_WORDS(desiredBytes); //Convert desiredBytes to words
+	int32_t desiredSpace = desiredWords + 2; //How many words to allocate including headers
+	
+	//Search free block
+	while(curPos < HEAP_SIZE){
+		//Test if block is free and valid (negative num, absolute val larger than size)
+		if(GlobalHeap[curPos] < 0 && -1 * GlobalHeap[curPos] >= desiredSpace){ //Find free block: Header value of block is negative, Header value * -1 larger than desiredSpace
+			//Record szie, start and end location of free block
+			int32_t sizeFreeBlock = GlobalHeap[curPos] * -1; //Total size of free block as a positive number
+			int32_t startFreeBlock = curPos; //Starting index of free block
+			int32_t endFreeBlock = curPos + sizeFreeBlock - 1; //Ending index of free block
+			
+			//Allocate new block
+			int32_t startTakenBlock = startFreeBlock; //Start header of taken block
+			int32_t endTakenBlock = startFreeBlock + desiredSpace - 1; //End header of taken block
+			GlobalHeap[startTakenBlock] = desiredSpace; //Store amount of space taken
+			GlobalHeap[endTakenBlock] = desiredSpace;
+			
+			//Set headers for rest of memory space in allocated block
+			int32_t remainingSize = sizeFreeBlock - desiredSpace; //Remaining size left in the free block
+			if(remainingSize >= 3) {  
+					//If remaining size is big enough for a new free block, allocate the remaining free block
+			    GlobalHeap[endTakenBlock + 1] = remainingSize * -1; //Start free block
+			    GlobalHeap[endFreeBlock] = remainingSize * -1; //End free block
+			} else {
+			    //If the remaining free block is too small, allocate the entire original free block 
+			    GlobalHeap[startTakenBlock] = sizeFreeBlock;
+			    GlobalHeap[endFreeBlock] = sizeFreeBlock;
+			}
+			
+			//Return pointer to allocated space 
+			return (void*)&GlobalHeap[curPos + 1];
+		}
+		
+		//find next block
+		curPos = curPos + abs((int32_t) GlobalHeap[curPos]);
+	}
+ 
+  return 0;   // NULL
 }
 
 
@@ -117,8 +126,21 @@ void* Heap_Malloc(int32_t desiredBytes)
 void* Heap_Calloc(int32_t desiredBytes)
 {  
     void* ptr = Heap_Malloc(desiredBytes);
-    if (ptr) memset(ptr, 0, desiredBytes);
-    return ptr;
+	//If malloc successful, initialize data
+	if(ptr != NULL){
+		//Use a word ptr (int32) instead of a void ptr (void is a generic pointer, compiler doesn't know how big the data is)
+		int32_t* wordPtr = (int32_t*)ptr;
+        
+    //Calculate num words
+    int32_t numWords = BYTES_TO_WORDS(desiredBytes);
+		
+		//Clear words
+		for(int i = 0; i < numWords; i++){
+			wordPtr[i] = 0;
+		}
+		return ptr;
+	}
+  return 0;   // NULL
 }
 
 
@@ -133,22 +155,97 @@ void* Heap_Calloc(int32_t desiredBytes)
 //   are copied to a new block if growing/shrinking not possible
 void* Heap_Realloc(void* oldBlock, int32_t desiredBytes)
 {
-    if (oldBlock == NULL)
-        return Heap_Malloc(desiredBytes);
-
-    BlockHeader* block = (BlockHeader*)((uint8_t*)oldBlock - sizeof(BlockHeader));
-    int32_t currentSize = block->next_size;
-    
-    if (currentSize >= desiredBytes)
-        return oldBlock;
-    
-    void* newBlock = Heap_Malloc(desiredBytes);
-    if (newBlock)
-    {
-        memcpy(newBlock, oldBlock, currentSize);
-        Heap_Free(oldBlock);
-    }
-    return newBlock;
+    //Edge cases: NULL and size == 0
+	if(oldBlock == NULL){return Heap_Malloc(desiredBytes);} //Malloc if old block null
+	if(desiredBytes == 0){Heap_Free(oldBlock); return NULL;}
+	
+	//Old block data
+	int32_t* oldBlockStartHeader = (int32_t*)oldBlock - 1; //Start header of old block
+	int32_t oldSizeWords = *oldBlockStartHeader; //Size in words (with headers)
+	int32_t newSizeWords = BYTES_TO_WORDS(desiredBytes) + 2; //New size, with headers
+	int32_t* oldBlockEndHeader = oldBlockStartHeader + *oldBlockStartHeader - 1; //End header of the old block
+	
+	//Edge case: Block is freed
+	if(*oldBlockStartHeader <= 0) {return NULL;}
+	
+	//If size equal
+	if(oldSizeWords == newSizeWords){return oldBlock;}
+	
+	//Shrink data
+	if(newSizeWords < oldSizeWords){
+		//Reduce size of current block
+		*oldBlockStartHeader = newSizeWords; //Set old block start header
+		*(oldBlockStartHeader + newSizeWords - 1) = newSizeWords; //Set old block end header (new location)
+		
+		//Make the rest of the chunk free, try to merge with below
+		int32_t* freeBlockStartHeader = oldBlockStartHeader + newSizeWords; //One after old block end header
+		*freeBlockStartHeader = -(oldSizeWords - newSizeWords);
+		int32_t* freeBlockEndHeader = freeBlockStartHeader + *freeBlockStartHeader * -1 - 1;
+		*freeBlockEndHeader = *freeBlockStartHeader;
+		
+		//Try to merge with block below
+		int32_t* nextBlockStartHeader = freeBlockEndHeader + 1;
+		if(*nextBlockStartHeader < 0){
+			//Merge if the next block is also free
+			int32_t* nextBlockEndHeader = nextBlockStartHeader + (*nextBlockStartHeader * -1) - 1;
+			
+			//Combine blocks by setting start and end headers
+			int32_t combinedSizeNegative = *freeBlockStartHeader + *nextBlockStartHeader;
+			*freeBlockStartHeader = combinedSizeNegative;
+			*nextBlockEndHeader = combinedSizeNegative;
+		}
+		
+		//Return pointer
+		return oldBlock;
+	}
+	
+	//Grow data in place
+	int32_t* nextBlockStartHeader = oldBlockEndHeader + 1;
+	int32_t freeBlockSize = *nextBlockStartHeader * -1; //Should be positive if block free, negative if block taken (words)
+	//Determine the next block is free and there is enough size to grow down
+	if(freeBlockSize > 0 && oldSizeWords + freeBlockSize >= newSizeWords){
+		//End header of next block (provided it is free)
+		int32_t* nextBlockEndHeader = nextBlockStartHeader + (*nextBlockStartHeader * -1) - 1;
+		int32_t nextBlockFreeSize = oldSizeWords + freeBlockSize - newSizeWords; //Size of the free block after reduction (words, positive) newSizeWords > oldSizeWords
+		
+		//Grow current block down
+		*oldBlockStartHeader = newSizeWords;
+		*(oldBlockStartHeader + newSizeWords - 1) = newSizeWords; //Set new old block end header (new location)
+				
+		//If enough space remains, reduce the free block, or else, allocate everything
+		if(nextBlockFreeSize >= 3) {
+			//Reduce new free block size
+			*(oldBlockStartHeader + newSizeWords) = nextBlockFreeSize * -1; //Start header of free block
+			*nextBlockEndHeader = nextBlockFreeSize * -1; //End header of free block
+		} else {
+			//Not enough space left for a free block, use all space for allocated block
+			*oldBlockStartHeader = oldSizeWords + freeBlockSize; //Allocated block start 
+			*nextBlockEndHeader = oldSizeWords + freeBlockSize; //Allocated block end
+		}
+		
+		//Return pointer
+		return oldBlock;
+	}
+	
+	//Try to malloc
+	void* newBlock = Heap_Malloc(desiredBytes);
+	
+	//Copy data if malloc success
+	if(newBlock != NULL){
+		int32_t* source = (int32_t*) oldBlock;
+		int32_t* destination = (int32_t*) newBlock;
+		
+		//Copy data via loop
+		for(int i = 0; i < oldSizeWords - 2; i++){ //Remove 2, don't wanna copy headers
+			destination[i] = source[i];
+		}
+		
+		//Return
+		Heap_Free(oldBlock);
+		return newBlock;
+	}
+	
+  return 0;   // NULL
 }
 
 
@@ -159,32 +256,48 @@ void* Heap_Realloc(void* oldBlock, int32_t desiredBytes)
 //     or trying to unallocate memory that has already been unallocated
 int32_t Heap_Free(void* pointer)
 {
-    if (pointer == NULL || pointer < heap_start || pointer > heap_end)
-        return -1;
-
-    long sr = StartCritical();
-
-    BlockHeader* block = (BlockHeader*)((uint8_t*)pointer - sizeof(BlockHeader));
-    block->next_size = -abs(block->next_size);
-    
-    // Merge with the next block if it is free
-    BlockHeader* next = (BlockHeader*)((uint8_t*)block + sizeof(BlockHeader) + abs(block->next_size));
-    if ((uint8_t*)next < heap + HEAP_SIZE && next->next_size < 0) {
-        block->next_size += next->next_size - sizeof(BlockHeader);
-    }
-    
-    // Merge with the previous block if it is free
-    if(block->prev_size != 0)
-    {
-        BlockHeader* prev = (BlockHeader*)((uint8_t*)block - block->prev_size - sizeof(BlockHeader));
-        if ((uint8_t*)prev >= heap && prev->next_size < 0) {
-            prev->next_size += block->next_size - sizeof(BlockHeader);
-        }
-    }
-    
-    EndCritical(sr);
-    return 0;
-
+   //Edge case: null
+	if(pointer == NULL){return 1;}
+		
+	//Get block data
+	int32_t* blockStartHeader = (int32_t*)pointer - 1; //Start Header
+	int32_t* blockEndHeader = blockStartHeader + *blockStartHeader - 1; //End header
+	int32_t blockSizeWord = *blockStartHeader; //Size in words (including headers), should be positive (not freed)
+	
+	//Check if freed
+	if(blockSizeWord <= 0){return 1;}
+	
+	//Mark block free
+	*blockStartHeader = -1 * *blockStartHeader;
+	*blockEndHeader = -1 * *blockEndHeader;
+	
+	//Try merge with above block
+	int32_t* aboveBlockEndHeader = blockStartHeader - 1;
+	if(*aboveBlockEndHeader < 0){
+		//Merge possible, get headers of above block
+		int32_t* aboveBlockStartHeader = aboveBlockEndHeader + *aboveBlockEndHeader + 1; //Find start header
+		blockSizeWord = blockSizeWord - *aboveBlockEndHeader; //Add to block size (should be positive)
+		
+		//Combine into new block
+		blockStartHeader = aboveBlockStartHeader;
+		*blockStartHeader = -1 * blockSizeWord;
+		*blockEndHeader = -1 * blockSizeWord;
+	}
+	
+	//Try to merge with below block
+	int32_t* belowBlockStartHeader = blockEndHeader + 1;
+	if(*belowBlockStartHeader < 0){
+		//Merge possible, get headers of below block
+		int32_t* belowBlockEndHeader = belowBlockStartHeader - *belowBlockStartHeader - 1; //Find end header
+		blockSizeWord = blockSizeWord - *belowBlockStartHeader; //Add to block size (should be positive)
+		
+		//Combine into new block
+		blockEndHeader = belowBlockEndHeader;
+		*blockStartHeader = -1 * blockSizeWord;
+		*blockEndHeader = -1 * blockSizeWord;
+	}
+ 
+  return 0;   
 }
 
 
@@ -194,22 +307,32 @@ int32_t Heap_Free(void* pointer)
 // output: 0 in case of success, non-zeror in case of error (e.g. corrupted heap)
 int32_t Heap_Stats(heap_stats_t *stats)
 {
-    if (stats == NULL)
-        return -1;
-    
-    stats->size = HEAP_SIZE;
-    stats->free = 0;
-    stats->used = 0;
-    
-    BlockHeader* current = (BlockHeader*)heap_start;
-    while ((uint8_t*)current < heap + HEAP_SIZE)
-    {
-        if (current->next_size < 0) {
-            stats->free -= current->next_size;
-        } else {
-            stats->used += current->next_size;
-        }
-        current = (BlockHeader*)((uint8_t*)current + abs(current->next_size) + sizeof(BlockHeader));
-    }
-    return 0;
+    //Edge case: Null ptr
+	if(stats == NULL){return 1;}
+	
+	//Size calculation
+	int32_t curPos = 0; //Value: Current index of search, should point to the start header of a block Init: 0, start header of first block
+	
+	//Set initial values
+	stats->size = HEAP_SIZE * 4; //Stores size as bytes (Each heap index is a word, so x4)
+  stats->used = 0;
+  stats->free = 0;
+	
+	//While still within heap size
+	while(curPos < HEAP_SIZE){
+		//Get size of the current block in words (each word is index of heap)
+		int32_t blockSizeWords = abs(GlobalHeap[curPos]);
+		
+		//Test if block is free
+		if(GlobalHeap[curPos] > 0){ //Allocated
+			stats->used = stats->used + blockSizeWords * 4 -8; //Convert to byte (x4)
+		}else{ //Free
+			stats->free = stats->free + blockSizeWords * 4 - 8; //For every free block, the headers (2 words) are not free 
+		}
+		
+		//Index search
+		curPos = curPos + blockSizeWords;
+	}
+	
+  return 0;   
 }
