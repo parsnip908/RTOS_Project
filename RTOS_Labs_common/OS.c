@@ -185,6 +185,7 @@ void MPU_FaultHandler(void) {
   //Implement fault behavior
 }
 
+/*
 //Switch privilege to user and set global
 void MPU_SetUnPrivilege(void) {
   MPU_SetUnPrivilegeASM();
@@ -196,6 +197,7 @@ void MPU_SetPrivilege(void) {
   MPU_SetPrivilegeASM();
   RunPt_Access = KERNEL;
 }
+*/
 
 //Global vars for defining what regions to set 
 //For MPU initialization, regions 0 and 7 are usually used for general memory access
@@ -220,6 +222,7 @@ void MPU_Init(void){
   MPURegionSet(PERIPHERAL_REGION, PERIPHERAL_BASE_ADDR, PERIPHERAL_FLAGS);
   MPURegionSet(BACKGROUND_REGION, BACKGROUND_BASE_ADDR, BACKGROUND_FLAGS);
 }
+
 /*------------------------------------------------------------------------------
   MPU set functions
   Should set privilege access bit and record in global var
@@ -419,7 +422,7 @@ void OS_Init(void){
   EnableInterrupts();
   
   //Init MPU
-  MPU_Init();
+  //MPU_Init();
 }; 
 
 //******** MPU regions  *************** 

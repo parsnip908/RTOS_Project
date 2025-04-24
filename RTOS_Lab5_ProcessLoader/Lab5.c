@@ -41,6 +41,9 @@
 #include "../RTOS_Labs_common/eDisk.h"
 #include "../RTOS_Labs_common/eFile.h"
 
+//NOTE FOR BUILDING: To work with TivaWare, use floating point architecture
+//Projects -> Options -> Target -> Single Point Precision for Floating Point Hardware
+
 
 uint32_t NumCreated;   // number of foreground threads created
 uint32_t IdleCount;    // CPU idle counter
