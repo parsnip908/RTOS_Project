@@ -33,7 +33,7 @@
 #include "../RTOS_Labs_common/heap.h"
 
 
-#define HEAP_SIZE 1024
+#define HEAP_SIZE 4096
 
 //Conversion from bytes to words (round up)
 int32_t BYTES_TO_WORDS(int32_t bytes){

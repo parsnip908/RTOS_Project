@@ -52,8 +52,8 @@
 //Thread globals for dynamic allocation
 TCB_t* tcbs; //Pointer to TCB
 int numThreads = 0;
-uint32_t numThreadsCap = 10; //Initial capacity of threads (Serves as MAXTHREADS but dynamic)
-uint8_t (*stacks)[STACK_SIZE]; //Pointer to TCB stacks
+uint32_t numThreadsCap = 5; //Initial capacity of threads (Serves as MAXTHREADS but dynamic)
+uint8_t **stacks; //Pointer to TCB stacks
 
 //Process globals for dynamic allocation
 PCB_t* pcbs; //Pointer to PCB
@@ -102,37 +102,28 @@ bool timerRunning = false;
  *------------------------------------------------------------------------------*/
 int expandThreads(void){
 	//Reallocate with new capacity
-	uint32_t newThreadCap = numThreadsCap + 5;
-	TCB_t* newTcbs = (TCB_t*)Heap_Realloc(tcbs, newThreadCap * sizeof(TCB_t));
-  uint8_t (*newStacks)[STACK_SIZE] = (uint8_t (*)[STACK_SIZE])Heap_Realloc(stacks, newThreadCap * sizeof(uint8_t[STACK_SIZE]));
-
-
-	//Test if thread allocation successful
-	if(newTcbs == NULL){
-		//Fail on TCB realloc
+	uint32_t newCap = numThreadsCap + 3;
+	TCB_t* newThreadPool = (TCB_t*)Heap_Realloc(tcbs, newCap * sizeof(TCB_t));
+	
+	//Test if successful
+	if(newThreadPool == NULL){
+		//Fail
 		return 0;
 	}
-  else if(newStacks == NULL){
-    //Fail on stack realloc, undo TCB realloc to new size, then return 0
-    TCB_t* newTcbs = (TCB_t*)Heap_Realloc(tcbs, numThreadsCap * sizeof(TCB_t));
-    tcbs = newTcbs;
-    return 0;
-  }
 	else{
-		//Success for both TCB and stacks
-		tcbs = newTcbs;
-    //Initialize new empty TCBs
-    for (int i = numThreadsCap; i < newThreadCap; ++i){
-      tcbs[i].status = EXITED;
+		//Success
+		tcbs = newThreadPool;
+		//Init new slots
+		for(uint32_t i = numThreadsCap; i < newCap; i++){
+			tcbs[i].status = EXITED;
       tcbs[i].sp = NULL;
-    }
-    //Set stacks
-    stacks = newStacks;
+		}
 		//Set new cap
-		numThreadsCap = newThreadCap;
+		numThreadsCap = newCap;
 		return 1;
 	}
 }
+
 int expandProcesses(void){
 	//Reallocate with new capacity
 	uint32_t newProcCap = numProcsCap + 10;
@@ -147,7 +138,7 @@ int expandProcesses(void){
 		//Success
 		pcbs = newPcbs;
 		//Initialize empty PCBs
-    for (int i = numProcsCap; i < newProcCap; ++i){
+    for (uint32_t i = numProcsCap; i < newProcCap; ++i){
       pcbs[i].text = NULL;
       pcbs[i].data = NULL;
     }
@@ -391,6 +382,7 @@ void OS_Init(void){
   queue_create(&special_queue);
 
   //Initialize TCBs and PCBs
+	Heap_Init();
   pcbs = (PCB_t*)Heap_Malloc(numProcsCap * sizeof(PCB_t));
   tcbs = (TCB_t*)Heap_Malloc(numThreadsCap * sizeof(TCB_t));
   
@@ -453,6 +445,10 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
 
   DisableInterrupts();
   intDisableTimerStart();
+	//Allocate stack
+	uint8_t * newStack = (uint8_t *) Heap_Malloc(STACK_SIZE);
+	if(newStack == NULL){return -1;}
+		
   int i;
   //find first open TCB block
   for(i=0; i<numThreadsCap; i++)
@@ -466,7 +462,7 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   tcbs[i].sleep = 0;
   tcbs[i].msTime = 0;
   tcbs[i].status = READY;
-  tcbs[i].sp = &stacks[i][STACK_SIZE-(16*4)];
+  tcbs[i].sp = &newStack[STACK_SIZE-(16*4)];
   tcbs[i].access = KERNEL; //For MPU
   if(newPCB)
   {
@@ -507,7 +503,7 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
 
   for(int j = 0; j<16*4; j++)
   {
-    stacks[i][STACK_SIZE-1-j] = stack_init[j];
+    newStack[STACK_SIZE-1-j] = stack_init[j];
   }
 
   queue_enqueue(&ready_queues[tcbs[i].priority], (void*)&tcbs[i]);
@@ -711,6 +707,10 @@ void OS_Kill(void){
 
   DisableInterrupts();
   intDisableTimerStart();
+	//Kill RunPt stack
+	Heap_Free(RunPt->sp);
+	RunPt->sp = NULL;
+	
   //enque current thread
   if(RunPt->parent)
   {
