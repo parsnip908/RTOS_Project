@@ -15,6 +15,7 @@
 #include "../RTOS_Labs_common/UART0int.h"
 #include "../RTOS_Labs_common/eDisk.h"
 #include "../RTOS_Labs_common/eFile.h"
+#include "../RTOS_Labs_common/heap.h"
 #include "../RTOS_Lab5_ProcessLoader/loader.h"
 
 
@@ -249,7 +250,14 @@ void Interpreter(void){
         }
 
       }
-
+    }
+    else if(strcmp(cmd_tok, "heap_stats") == 0)
+    {
+      heap_stats_t stats;
+      Heap_Stats(&stats);
+      printf("size: %u\n", stats.size);
+      printf("used: %u\n", stats.used);
+      printf("free: %u\n", stats.free);
     }
 
 

@@ -58,6 +58,7 @@ typedef struct __attribute__((packed)) tcb {
   uint16_t priority;
   uint64_t sleep;
   uint32_t msTime;
+  uint8_t *stack_base;
   PCB_t* parent;
   Access access;
 } TCB_t;

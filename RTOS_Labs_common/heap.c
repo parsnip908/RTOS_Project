@@ -27,6 +27,7 @@
 
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "../inc/CortexM.h"
@@ -71,6 +72,7 @@ void* Heap_Malloc(int32_t desiredBytes)
 {
    //Edge case: invalid size
 	if(desiredBytes <= 0){return 0;}
+	printf("malloc %d \n", desiredBytes);
 	
 	//Size calculation
 	int32_t curPos = 0; //Value: Current index of search, should point to the start header of a block Init: 0, start header of first block
@@ -128,19 +130,20 @@ void* Heap_Calloc(int32_t desiredBytes)
     void* ptr = Heap_Malloc(desiredBytes);
 	//If malloc successful, initialize data
 	if(ptr != NULL){
-		//Use a word ptr (int32) instead of a void ptr (void is a generic pointer, compiler doesn't know how big the data is)
-		int32_t* wordPtr = (int32_t*)ptr;
+		// //Use a word ptr (int32) instead of a void ptr (void is a generic pointer, compiler doesn't know how big the data is)
+		// int32_t* wordPtr = (int32_t*)ptr;
         
-    //Calculate num words
-    int32_t numWords = BYTES_TO_WORDS(desiredBytes);
+		// //Calculate num words
+		// int32_t numWords = BYTES_TO_WORDS(desiredBytes);
 		
-		//Clear words
-		for(int i = 0; i < numWords; i++){
-			wordPtr[i] = 0;
-		}
-		return ptr;
+		// //Clear words
+		// for(int i = 0; i < numWords; i++){
+		// 	wordPtr[i] = 0;
+		// }
+		// return ptr;
+		memset(ptr, 0, desiredBytes);
 	}
-  return 0;   // NULL
+  return ptr;   // NULL
 }
 
 
