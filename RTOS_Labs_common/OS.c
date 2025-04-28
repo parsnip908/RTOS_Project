@@ -422,6 +422,8 @@ void OS_Init(void){
   OS_AddThread(&OS_IdleThread, 1024, MIN_PRIORITY-1);
 
   eFile_Mount();
+
+  MPU_Init();
   
   printf("OS_init\n");
   // intDisableTimerEnd();
@@ -674,7 +676,9 @@ int OS_AddProcess(void(*entry)(void), void *text, void *data,
 
   pcbs[i]->id = i;
   pcbs[i]->text = text;
+  pcbs[i]->text_size = (flog2(Heap_GetAlloc(text)) -1) <<1;
   pcbs[i]->data = data;
+  pcbs[i]->data_size = (flog2(Heap_GetAlloc(data)) -1) <<1;
 
   newPCB = pcbs[i];
 
@@ -934,12 +938,14 @@ TCB_t* OS_getNext()
   if(RunPt->parent && RunPt->access == USER)
   {
     //user thread
-    MPURegionSet(STACK_REGION, RunPt->stack_base, STACK_FLAGS | MPU_RGN_ENABLE);
-    MPURegionSet(TEXT_REGION, RunPt->parent->text, TEXT_FLAGS | MPU_RGN_ENABLE | RunPt->parent->text_size);
-    MPURegionSet(DATA_REGION, RunPt->parent->data, DATA_FLAGS | MPU_RGN_ENABLE | RunPt->parent->data_size);
+    MPURegionSet(STACK_REGION, (uint32_t) RunPt->stack_base, STACK_FLAGS | MPU_RGN_ENABLE);
+    MPURegionSet(TEXT_REGION, (uint32_t) RunPt->parent->text, TEXT_FLAGS | MPU_RGN_ENABLE | RunPt->parent->text_size);
+    MPURegionSet(DATA_REGION, (uint32_t) RunPt->parent->data, DATA_FLAGS | MPU_RGN_ENABLE | RunPt->parent->data_size);
+    MPUEnable(MPU_CONFIG_PRIV_DEFAULT);
   }
   else
   {
+    MPUDisable();
     MPURegionDisable(STACK_REGION);
     MPURegionDisable(TEXT_REGION);
     MPURegionDisable(DATA_REGION);

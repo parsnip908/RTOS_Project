@@ -20,6 +20,7 @@
         EXPORT  SysTick_Handler
         EXPORT  SVC_Handler
         EXPORT  wait_cycles
+        EXPORT  flog2
 
         IMPORT GPIOPortF_Hook
         IMPORT OS_Timer_Hook
@@ -56,16 +57,16 @@ waitloop
     bne     waitloop
     bx      lr
 
-flog2:
-    CMP     R0, #0            // Check if input is zero
-    BEQ     flog2_error        // If zero, jump to error handler
-    CLZ     R1, R0            // R1 = count leading zeros
-    RSBS    R0, R1, #31       // R0 = 31 - R1 (RSBS = Reverse Subtract and Set Flags)
-    BX      LR                // Return
-flog2_error:
+flog2
+    CMP     R0, #0            ; Check if input is zero
+    BEQ     flog2_error       ; If zero, jump to error handler
+    CLZ     R1, R0            ; R1 = count leading zeros
+    RSBS    R0, R1, #31       ; R0 = 31 - R1 (RSBS = Reverse Subtract and Set Flags)
+    BX      LR                ; Return
+flog2_error
     MOV     R0, #-1
-    ; LSL     R0, R0, #24       // Move 0xFF to top byte (0xFF000000)
-    ; ORR     R0, R0, #0xFFFFFF // Combine to 0xFFFFFFFF
+    ; LSL     R0, R0, #24       ; Move 0xFF to top byte (0xFF000000)
+    ; ORR     R0, R0, #0xFFFFFF ; Combine to 0xFFFFFFFF
     BX      LR
 
 StartOS
