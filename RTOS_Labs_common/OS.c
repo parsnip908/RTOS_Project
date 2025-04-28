@@ -471,7 +471,7 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   }
   
   //Allocate stack
-  tcbs[i]->stack_base = (uint8_t *) Heap_Malloc(STACK_SIZE);
+  tcbs[i]->stack_base = (uint8_t *) Heap_MallocAlignedPow2(STACK_SIZE);
   if(tcbs[i]->stack_base == NULL)
   {
     return 0;
@@ -509,6 +509,7 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
       if(tcbs[i]->parent->tcbs[k] == NULL) break;
     if (k ==THREADSPERPROC)
     {
+      Heap_Free(newStack);
       tcbs[i]->sp = NULL;
       tcbs[i]->status = EXITED;
       numThreads--;
