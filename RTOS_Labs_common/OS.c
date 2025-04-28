@@ -50,14 +50,14 @@
 // #define OS_PROFILE
 
 //Thread globals for dynamic allocation
-TCB_t* tcbs; //Pointer to TCB
-int numThreads = 0;
+TCB_t** tcbs; //Pointer to TCB
+uint32_t numThreads = 0;
 uint32_t numThreadsCap = 5; //Initial capacity of threads (Serves as MAXTHREADS but dynamic)
 uint8_t **stacks; //Pointer to TCB stacks
 
 //Process globals for dynamic allocation
-PCB_t* pcbs; //Pointer to PCB
-int numProcs = 0;
+PCB_t** pcbs; //Pointer to PCB
+uint32_t numProcs = 0;
 uint32_t numProcsCap = 3; //Initial capacity of processes (Serves as MAXPROCS but dynamic)
 PCB_t* newPCB = NULL;
 
@@ -103,31 +103,34 @@ bool timerRunning = false;
 int expandThreads(void){
 	//Reallocate with new capacity
 	uint32_t newCap = numThreadsCap + 3;
-	TCB_t* newThreadPool = (TCB_t*)Heap_Realloc(tcbs, newCap * sizeof(TCB_t));
+	TCB_t** newThreadPool = (TCB_t**)Heap_Realloc(tcbs, newCap * sizeof(TCB_t*));
 	
 	//Test if successful
 	if(newThreadPool == NULL){
 		//Fail
-		return 0;
+		return -1;
 	}
 	else{
 		//Success
 		tcbs = newThreadPool;
-		//Init new slots
+		// //Init new slots
+    // for(uint32_t i = numThreadsCap; i < newCap; i++){
+		// 	tcbs[i].status = EXITED;
+    //   tcbs[i].sp = NULL;
+		// }
 		for(uint32_t i = numThreadsCap; i < newCap; i++){
-			tcbs[i].status = EXITED;
-      tcbs[i].sp = NULL;
-		}
+      tcbs[i] = NULL;
+    }
 		//Set new cap
 		numThreadsCap = newCap;
-		return 1;
+		return 0;
 	}
 }
 
 int expandProcesses(void){
 	//Reallocate with new capacity
-	uint32_t newProcCap = numProcsCap + 10;
-	PCB_t* newPcbs = (PCB_t*)Heap_Realloc(pcbs, newProcCap * sizeof(PCB_t));
+	uint32_t newProcCap = numProcsCap + 3;
+	PCB_t** newPcbs = (PCB_t**)Heap_Realloc(pcbs, newProcCap * sizeof(PCB_t*));
 	
 	//Test if successful
 	if(newPcbs == NULL){
@@ -139,8 +142,9 @@ int expandProcesses(void){
 		pcbs = newPcbs;
 		//Initialize empty PCBs
     for (uint32_t i = numProcsCap; i < newProcCap; ++i){
-      pcbs[i].text = NULL;
-      pcbs[i].data = NULL;
+      // pcbs[i].text = NULL;
+      // pcbs[i].data = NULL;
+      pcbs[i] = NULL;
     }
 		//Set new cap
 		numProcsCap = newProcCap;
@@ -347,10 +351,10 @@ void OS_IdleThread(void)
       //check sleeping
       //delete exited
     queue_iterate(&special_queue, &OS_IdleIterator);
-    for (int i = 0; i < numThreadsCap; ++i)
+    for (uint32_t i = 0; i < numThreadsCap; ++i)
     {
-      if(tcbs[i].status == ASLEEP)
-        OS_IdleIterator(&special_queue, &tcbs[i]);
+      if(tcbs[i]->status == ASLEEP)
+        OS_IdleIterator(&special_queue, tcbs[i]);
     }
     //TODO: unblock threads
     // PD2 ^= 0x04;       // heartbeat
@@ -372,6 +376,7 @@ void OS_Init(void){
   // intDisableTimerStart();
   PLL_Init(Bus80MHz);
   UART_Init();       // serial I/O for interpreter
+  Heap_Init();
   ST7735_InitR(INITR_REDTAB); // LCD initialization
 
   // printf("Table adddr: %x\n", NVIC_VTABLE_R);
@@ -382,19 +387,18 @@ void OS_Init(void){
   queue_create(&special_queue);
 
   //Initialize TCBs and PCBs
-	Heap_Init();
-  pcbs = (PCB_t*)Heap_Malloc(numProcsCap * sizeof(PCB_t));
-  tcbs = (TCB_t*)Heap_Malloc(numThreadsCap * sizeof(TCB_t));
+  pcbs = (PCB_t**)Heap_Calloc(numProcsCap * sizeof(PCB_t*));
+  tcbs = (TCB_t**)Heap_Calloc(numThreadsCap * sizeof(TCB_t*));
   
   //Initialize empty PCBs
-  memset((void*) pcbs, 0, sizeof(PCB_t)*numProcsCap);
+  // memset((void*) pcbs, 0, sizeof(PCB_t)*numProcsCap);
 
   //Initialize empty TCBs
-  memset((void*) tcbs, 0, sizeof(TCB_t)*numThreadsCap);
-  for (int i = 0; i < numThreadsCap; ++i)
-  {
-    tcbs[i].status = EXITED;
-  }
+  // memset((void*) tcbs, 0, sizeof(TCB_t)*numThreadsCap);
+  // for (int i = 0; i < numThreadsCap; ++i)
+  // {
+  //   tcbs[i].status = EXITED;
+  // }
 
   //setup global timer
   WideTimer0_Init();
@@ -409,6 +413,9 @@ void OS_Init(void){
   //TODO: systick init. preempt disabled
 
   OS_AddThread(&OS_IdleThread, 1024, MIN_PRIORITY-1);
+
+  eFile_Mount();
+  
   printf("OS_init\n");
   // intDisableTimerEnd();
   EnableInterrupts();
@@ -435,62 +442,79 @@ void OS_Init(void){
 // In Lab 3, you can ignore the stackSize fields
 int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   // put Lab 2 (and beyond) solution here
+  DisableInterrupts();
+  intDisableTimerStart();
 
   //Check if space to put new thread
   if(numThreads >= numThreadsCap){
-    if(expandThreads() == 0){
+    if(expandThreads()){
       return 0;
     }
   }
 
-  DisableInterrupts();
-  intDisableTimerStart();
-	//Allocate stack
-	uint8_t * newStack = (uint8_t *) Heap_Malloc(STACK_SIZE);
-	if(newStack == NULL){return -1;}
 		
-  int i;
+  uint32_t i;
   //find first open TCB block
   for(i=0; i<numThreadsCap; i++)
-    if(tcbs[i].status == EXITED && tcbs[i].sp == NULL) break;
+  {
+    if(tcbs[i] == NULL)
+    {
+      tcbs[i] = Heap_Calloc(sizeof(TCB_t));
+      if(tcbs[i] == NULL)
+      {
+        return 0;
+      }
+      tcbs[i]->status = EXITED;
+      break;
+    }
+    if(tcbs[i]->status == EXITED && tcbs[i]->sp == NULL) break;
+  }
   
+  //Allocate stack
+  tcbs[i]->stack_base = (uint8_t *) Heap_Malloc(STACK_SIZE);
+  if(tcbs[i]->stack_base == NULL)
+  {
+    return 0;
+  }
+  uint8_t * newStack = tcbs[i]->stack_base;
+
   PD3 ^= 0x08;
   // int i = numThreads;
   numThreads++;
-  tcbs[i].id = i;
-  tcbs[i].priority = (priority < MIN_PRIORITY) ? priority : MIN_PRIORITY-1;
-  tcbs[i].sleep = 0;
-  tcbs[i].msTime = 0;
-  tcbs[i].status = READY;
-  tcbs[i].sp = &newStack[STACK_SIZE-(16*4)];
-  tcbs[i].access = KERNEL; //For MPU
+  tcbs[i]->id = i;
+  tcbs[i]->priority = (priority < MIN_PRIORITY) ? priority : MIN_PRIORITY-1;
+  tcbs[i]->sleep = 0;
+  tcbs[i]->msTime = 0;
+  tcbs[i]->status = READY;
+  tcbs[i]->sp = &newStack[STACK_SIZE-(16*4)];
+  tcbs[i]->access = KERNEL; //For MPU
   if(newPCB)
   {
-    tcbs[i].parent = newPCB;
+    tcbs[i]->parent = newPCB;
     newPCB = NULL;
   }
   else if(RunPt)
-    tcbs[i].parent = RunPt->parent;
+    tcbs[i]->parent = RunPt->parent;
   else
-    tcbs[i].parent = NULL;
+    tcbs[i]->parent = NULL;
 
   uint32_t task_uintptr = (uint32_t) task;
   uint32_t kill_uintptr = (uint32_t) &OS_Kill;
   uint32_t data_uintptr = 0x09090909;
-  if(tcbs[i].parent)
+  if(tcbs[i]->parent)
   {
-    data_uintptr = (uint32_t) tcbs[i].parent->data;
+    data_uintptr = (uint32_t) tcbs[i]->parent->data;
     int k;
     for(k=0; k<THREADSPERPROC; k++)
-      if(tcbs[i].parent->tcbs[k] == NULL) break;
+      if(tcbs[i]->parent->tcbs[k] == NULL) break;
     if (k ==THREADSPERPROC)
     {
-      tcbs[i].sp = NULL;
-      tcbs[i].status = EXITED;
+      tcbs[i]->sp = NULL;
+      tcbs[i]->status = EXITED;
       numThreads--;
       return 0;
     }
-    tcbs[i].parent->tcbs[k] = &tcbs[i];
+    tcbs[i]->parent->tcbs[k] = tcbs[i];
   }
 
   for(int j = 0; j<4; j++)
@@ -506,7 +530,7 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
     newStack[STACK_SIZE-1-j] = stack_init[j];
   }
 
-  queue_enqueue(&ready_queues[tcbs[i].priority], (void*)&tcbs[i]);
+  queue_enqueue(&ready_queues[tcbs[i]->priority], (void*)tcbs[i]);
 
   intDisableTimerEnd();
   EnableInterrupts();
@@ -516,6 +540,7 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
 
 //******** OS_AddThread_Process *************** 
 // Add thread with user permissions, helper function for addprocess
+/*
 int OS_AddThread_Process(void(*task)(void), uint32_t stackSize, uint32_t priority){
   // put Lab 2 (and beyond) solution here
   
@@ -591,7 +616,7 @@ int OS_AddThread_Process(void(*task)(void), uint32_t stackSize, uint32_t priorit
      
   return 1;
 };
-
+*/
 //******** OS_AddProcess *************** 
 // add a process with foregound thread to the scheduler
 // Inputs: pointer to a void/void entry point
@@ -605,8 +630,10 @@ int OS_AddThread_Process(void(*task)(void), uint32_t stackSize, uint32_t priorit
 // NOTE: Assume those are user processes
 int OS_AddProcess(void(*entry)(void), void *text, void *data, 
   unsigned long stackSize, unsigned long priority){
-  // put Lab 5 solution here
   
+  DisableInterrupts();
+  intDisableTimerStart();
+
   //Check if space to put new process
   if(numProcs >= numProcsCap){
     if(expandProcesses() == 0){
@@ -614,12 +641,19 @@ int OS_AddProcess(void(*entry)(void), void *text, void *data,
     }
   }
 
-  DisableInterrupts();
-  intDisableTimerStart();
-  int i;
+  uint32_t i;
   //find first open PCB block
   for(i=0; i<numProcsCap; i++)
-    if(pcbs[i].text == NULL) break;
+  {
+    if(pcbs[i] == NULL)
+    {
+      pcbs[i] = Heap_Calloc(sizeof(PCB_t));
+      if(pcbs[i] == NULL)
+        return 0;
+      break;
+    }
+    if(pcbs[i]->text == NULL) break;
+  }
 
   if(i >= numProcsCap)
   {
@@ -630,24 +664,25 @@ int OS_AddProcess(void(*entry)(void), void *text, void *data,
     return 0;
   }
 
-  pcbs[i].id = i;
-  pcbs[i].text = text;
-  pcbs[i].data = data;
+  pcbs[i]->id = i;
+  pcbs[i]->text = text;
+  pcbs[i]->data = data;
 
-  newPCB = &pcbs[i];
+  newPCB = pcbs[i];
 
-  if(!OS_AddThread_Process(entry, stackSize, priority))
+  if(!OS_AddThread(entry, stackSize, priority))
   {
     printf("addthread issue in addproc\n");
     Heap_Free(text);
     Heap_Free(data);
-    pcbs[i].text = NULL;
-    pcbs[i].data = NULL;
+    pcbs[i]->text = NULL;
+    pcbs[i]->data = NULL;
     newPCB = NULL;
-    pcbs[i].tcbs[0] = NULL;
+    pcbs[i]->tcbs[0] = NULL;
     return 0;
   }
 
+  numProcs++;
   return 1;     
 }
 
@@ -708,7 +743,7 @@ void OS_Kill(void){
   DisableInterrupts();
   intDisableTimerStart();
 	//Kill RunPt stack
-	Heap_Free(RunPt->sp);
+	Heap_Free(RunPt->stack_base);
 	RunPt->sp = NULL;
 	
   //enque current thread
@@ -733,6 +768,7 @@ void OS_Kill(void){
       Heap_Free(RunPt->parent->data);
       RunPt->parent->text = NULL;
       RunPt->parent->data = NULL;
+      numProcs--;
     }
   }
   RunPt->status = EXITED;
@@ -882,7 +918,7 @@ TCB_t* OS_getNext()
   }
   else
   {
-    RunPt = &tcbs[0];
+    RunPt = tcbs[0];
     queue_delete(&ready_queues[MIN_PRIORITY-1], (void*) RunPt);
   }
 
