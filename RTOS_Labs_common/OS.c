@@ -376,9 +376,9 @@ void OS_Init(void){
   // intDisableTimerStart();
   PLL_Init(Bus80MHz);
   UART_Init();       // serial I/O for interpreter
+  Heap_Init();
   ST7735_InitR(INITR_REDTAB); // LCD initialization
 
-	Heap_Init();
   // printf("Table adddr: %x\n", NVIC_VTABLE_R);
 
   // WideTimer0A_Init(increment_time, 80000, 5);
@@ -442,6 +442,8 @@ void OS_Init(void){
 // In Lab 3, you can ignore the stackSize fields
 int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   // put Lab 2 (and beyond) solution here
+  DisableInterrupts();
+  intDisableTimerStart();
 
   //Check if space to put new thread
   if(numThreads >= numThreadsCap){
@@ -450,8 +452,6 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
     }
   }
 
-  DisableInterrupts();
-  intDisableTimerStart();
 		
   uint32_t i;
   //find first open TCB block
@@ -460,6 +460,10 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
     if(tcbs[i] == NULL)
     {
       tcbs[i] = Heap_Calloc(sizeof(TCB_t));
+      if(tcbs[i] == NULL)
+      {
+        return 0;
+      }
       tcbs[i]->status = EXITED;
       break;
     }
@@ -626,8 +630,10 @@ int OS_AddThread_Process(void(*task)(void), uint32_t stackSize, uint32_t priorit
 // NOTE: Assume those are user processes
 int OS_AddProcess(void(*entry)(void), void *text, void *data, 
   unsigned long stackSize, unsigned long priority){
-  // put Lab 5 solution here
   
+  DisableInterrupts();
+  intDisableTimerStart();
+
   //Check if space to put new process
   if(numProcs >= numProcsCap){
     if(expandProcesses() == 0){
@@ -635,15 +641,15 @@ int OS_AddProcess(void(*entry)(void), void *text, void *data,
     }
   }
 
-  DisableInterrupts();
-  intDisableTimerStart();
   uint32_t i;
   //find first open PCB block
   for(i=0; i<numProcsCap; i++)
   {
     if(pcbs[i] == NULL)
     {
-      pcbs[i] = Heap_Malloc(sizeof(PCB_t));
+      pcbs[i] = Heap_Calloc(sizeof(PCB_t));
+      if(pcbs[i] == NULL)
+        return 0;
       break;
     }
     if(pcbs[i]->text == NULL) break;

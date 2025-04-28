@@ -114,7 +114,7 @@ void* Heap_Malloc(int32_t desiredBytes)
 		curPos = curPos + abs((int32_t) GlobalHeap[curPos]);
 	}
  
-  return 0;   // NULL
+  return NULL;   // NULL
 }
 
 
@@ -141,9 +141,9 @@ void* Heap_Calloc(int32_t desiredBytes)
 		// 	wordPtr[i] = 0;
 		// }
 		// return ptr;
-		memset(ptr, 0, desiredBytes);
+		memset(ptr, 0, BYTES_TO_WORDS(desiredBytes));
 	}
-  return ptr;   // NULL
+	return ptr;   // NULL
 }
 
 
