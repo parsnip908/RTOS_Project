@@ -2,19 +2,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "queue.h"
+#include "../RTOS_Labs_common/queue.h"
+#include "../RTOS_Labs_common/heap.h"
 
 
 void queue_create(queue_t* queue)
 {
   // queue_t queue = malloc(sizeof(struct queue));
-  // if(queue == NULL) return NULL;
+  if(queue == NULL) return;
 
-  // queue->arr_to_hold_queue = malloc(sizeof(void*) * QUEUE_STARTING_SIZE);
-  // if(queue->arr_to_hold_queue == NULL) {
-  //   free(queue); //need to free the struct if the array alloc failed.
-  //   return NULL;
-  // }
+  queue->arr_to_hold_queue = Heap_Malloc(sizeof(void*) * QUEUE_STARTING_SIZE);
+  if(queue->arr_to_hold_queue == NULL) {
+    // Heap_Free(queue); //need to free the struct if the array alloc failed.
+    return;
+  }
 
   queue->max_size = QUEUE_STARTING_SIZE;
   queue->curr_size = 0;
@@ -38,26 +39,26 @@ int queue_enqueue(queue_t* queue, void *data)
   // no malloc so expansion disabled
   if(queue->curr_size == queue->max_size) //queue is full and needs to be expanded
   {
-    // void **new_array = malloc(sizeof(void*) * queue->max_size *2);
-    // if(new_array == NULL) return -1;
+    void **new_array = Heap_Malloc(sizeof(void*) * queue->max_size *2);
+    if(new_array == NULL) return -1;
 
-    // int i = 0;
-    // void **queue_array_end = queue->arr_to_hold_queue + queue->max_size;
-    // do //copy all data into new array
-    // {
-    //   new_array[i++] = *(queue->front++);
-    //   // check if pointer needs to wrap around the array
-    //   if(queue->front == queue_array_end)
-    //     queue->front = queue->arr_to_hold_queue;
-    // } while (queue->front != queue->back); //repeat until the front pointer loops around to back
+    int i = 0;
+    void **queue_array_end = queue->arr_to_hold_queue + queue->max_size;
+    do //copy all data into new array
+    {
+      new_array[i++] = *(queue->front++);
+      // check if pointer needs to wrap around the array
+      if(queue->front == queue_array_end)
+        queue->front = queue->arr_to_hold_queue;
+    } while (queue->front != queue->back); //repeat until the front pointer loops around to back
 
-    // // update struct variables
-    // free(queue->arr_to_hold_queue);
-    // queue->front = new_array;
-    // queue->back = new_array + i;
-    // queue->arr_to_hold_queue = new_array;
-    // queue->max_size *= 2;
-    return -1;
+    // update struct variables
+    Heap_Free(queue->arr_to_hold_queue);
+    queue->front = new_array;
+    queue->back = new_array + i;
+    queue->arr_to_hold_queue = new_array;
+    queue->max_size *= 2;
+    // return -1;
   }
   //enqueue data
   *(queue->back++) = data;

@@ -6,7 +6,7 @@
 typedef struct queue {
   void **front;
   void **back;
-  void *arr_to_hold_queue[QUEUE_STARTING_SIZE];
+  void **arr_to_hold_queue;
   int max_size;
   int curr_size;
 } queue_t;

@@ -378,6 +378,7 @@ void OS_Init(void){
   UART_Init();       // serial I/O for interpreter
   ST7735_InitR(INITR_REDTAB); // LCD initialization
 
+	Heap_Init();
   // printf("Table adddr: %x\n", NVIC_VTABLE_R);
 
   // WideTimer0A_Init(increment_time, 80000, 5);
@@ -386,7 +387,6 @@ void OS_Init(void){
   queue_create(&special_queue);
 
   //Initialize TCBs and PCBs
-	Heap_Init();
   pcbs = (PCB_t**)Heap_Calloc(numProcsCap * sizeof(PCB_t*));
   tcbs = (TCB_t**)Heap_Calloc(numThreadsCap * sizeof(TCB_t*));
   
@@ -413,6 +413,9 @@ void OS_Init(void){
   //TODO: systick init. preempt disabled
 
   OS_AddThread(&OS_IdleThread, 1024, MIN_PRIORITY-1);
+
+  eFile_Mount();
+  
   printf("OS_init\n");
   // intDisableTimerEnd();
   EnableInterrupts();
