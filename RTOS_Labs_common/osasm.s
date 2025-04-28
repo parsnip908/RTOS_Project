@@ -56,6 +56,18 @@ waitloop
     bne     waitloop
     bx      lr
 
+flog2:
+    CMP     R0, #0            // Check if input is zero
+    BEQ     flog2_error        // If zero, jump to error handler
+    CLZ     R1, R0            // R1 = count leading zeros
+    RSBS    R0, R1, #31       // R0 = 31 - R1 (RSBS = Reverse Subtract and Set Flags)
+    BX      LR                // Return
+flog2_error:
+    MOV     R0, #-1
+    ; LSL     R0, R0, #24       // Move 0xFF to top byte (0xFF000000)
+    ; ORR     R0, R0, #0xFFFFFF // Combine to 0xFFFFFFFF
+    BX      LR
+
 StartOS
 ; put your code here
     LDR R0, =RunPt ; currently running thread

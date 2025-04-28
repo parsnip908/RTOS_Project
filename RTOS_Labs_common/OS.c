@@ -197,22 +197,29 @@ void MPU_SetPrivilege(void) {
 //Global vars for defining what regions to set 
 //For MPU initialization, regions 0 and 7 are usually used for general memory access
 //Peripheral region: protects peripheral registers, makes sure only kernel threads can access them
-#define PERIPHERAL_REGION 0
+#define PERIPHERAL_REGION 7
 #define PERIPHERAL_BASE_ADDR 0x40000000
 //                       Size of region     | no code execution   | privileged (kernel) read write | enable region 
-#define PERIPHERAL_FLAGS (MPU_RGN_SIZE_512M | MPU_RGN_PERM_NOEXEC | MPU_RGN_PERM_PRV_RW_USR_NO     | MPU_RGN_ENABLE)
+#define PERIPHERAL_FLAGS (MPU_RGN_SIZE_1G | MPU_RGN_PERM_NOEXEC | MPU_RGN_PERM_PRV_RW_USR_RW     | MPU_RGN_ENABLE)
+
+#define STACK_REGION 6
+#define STACK_FLAGS (MPU_RGN_SIZE_1K | MPU_RGN_PERM_NOEXEC | MPU_RGN_PERM_PRV_RW_USR_RW)
+
+#define TEXT_REGION 5
+#define TEXT_FLAGS (MPU_RGN_PERM_EXEC | MPU_RGN_PERM_PRV_RO_USR_RO)
+
+#define DATA_REGION 4
+#define DATA_FLAGS (MPU_RGN_PERM_EXEC | MPU_RGN_PERM_PRV_RW_USR_RW)
 
 //Background region: protects entire region, create privileged RW access for code not covered by other regions, separate kernel and user
-#define BACKGROUND_REGION 7
+#define BACKGROUND_REGION 0
 #define BACKGROUND_BASE_ADDR 0x0000000
 //                       Size of region   | allow code execution | privileged (kernel) read write | enable region 
-#define BACKGROUND_FLAGS (MPU_RGN_SIZE_4G | MPU_RGN_PERM_EXEC    | MPU_RGN_PERM_PRV_RW_USR_NO     | MPU_RGN_ENABLE)
+#define BACKGROUND_FLAGS (MPU_RGN_SIZE_1G | MPU_RGN_PERM_EXEC    | MPU_RGN_PERM_PRV_RW_USR_NO     | MPU_RGN_ENABLE)
 
 //Initialize fault handler and MPU regions
 void MPU_Init(void){
-  //Set fault handler (interrupt)
-  MPUIntRegister(MPU_FaultHandler);
-
+  MPUDisable();
   //Set whatever region is needed (subject to change)
   MPURegionSet(PERIPHERAL_REGION, PERIPHERAL_BASE_ADDR, PERIPHERAL_FLAGS);
   MPURegionSet(BACKGROUND_REGION, BACKGROUND_BASE_ADDR, BACKGROUND_FLAGS);
@@ -487,7 +494,7 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   tcbs[i]->msTime = 0;
   tcbs[i]->status = READY;
   tcbs[i]->sp = &newStack[STACK_SIZE-(16*4)];
-  tcbs[i]->access = KERNEL; //For MPU
+  tcbs[i]->access = USER; //For MPU
   if(newPCB)
   {
     tcbs[i]->parent = newPCB;
@@ -923,6 +930,21 @@ TCB_t* OS_getNext()
     queue_delete(&ready_queues[MIN_PRIORITY-1], (void*) RunPt);
   }
 
+  //Setup MPU
+  if(RunPt->parent && RunPt->access == USER)
+  {
+    //user thread
+    MPURegionSet(STACK_REGION, RunPt->stack_base, STACK_FLAGS | MPU_RGN_ENABLE);
+    MPURegionSet(TEXT_REGION, RunPt->parent->text, TEXT_FLAGS | MPU_RGN_ENABLE | RunPt->parent->text_size);
+    MPURegionSet(DATA_REGION, RunPt->parent->data, DATA_FLAGS | MPU_RGN_ENABLE | RunPt->parent->data_size);
+  }
+  else
+  {
+    MPURegionDisable(STACK_REGION);
+    MPURegionDisable(TEXT_REGION);
+    MPURegionDisable(DATA_REGION);
+  }
+
   RunPt->status = RUNNING;
 #ifdef OS_PROFILE
   PD1 ^= 0x02;
@@ -1003,6 +1025,7 @@ void OS_Launch(uint32_t theTimeSlice){
   // STCTRL = 0x00000007; // enable, core clock and interrupt arm
   SysTick_Init(theTimeSlice);
   SysTick_Enable();
+  MPUEnable(MPU_CONFIG_PRIV_DEFAULT);
   startTime = OS_Time();
   OS_getNext();
   StartOS(); // start on the first task

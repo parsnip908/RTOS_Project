@@ -13,4 +13,6 @@ void SVC_Handler(void);
 
 void wait_cycles(uint32_t cycles);
 
+int flog2(int num);
+
 #endif

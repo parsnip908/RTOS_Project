@@ -66,7 +66,9 @@ typedef struct __attribute__((packed)) tcb {
 struct pcb {
   uint8_t id;
   void* text;
+  int text_size;
   void* data;
+  int data_size;
   TCB_t* tcbs[THREADSPERPROC];
 };
 

@@ -414,3 +414,15 @@ void* Heap_MallocAlignedPow2(int32_t desiredBytes){
 
     return NULL; // Failed
 }
+
+
+int32_t Heap_GetAlloc(void* pointer)
+{
+	if(pointer == NULL){return 0;}
+		
+	//Get block data
+	int32_t* blockStartHeader = (int32_t*)pointer - 1; //Start Header
+	int32_t blockSizeWord = *blockStartHeader; //Size in words (including headers), should be positive (not freed)
+
+	return (blockSizeWord-2) * 4;
+}
