@@ -33,7 +33,7 @@
 #include "../inc/driverlib/systick.h"
 #include "../inc/driverlib/mpu.h"
 
-#define STACK_SIZE 256*4
+#define STACK_SIZE 128*4
 #define MIN_PRIORITY 4
 
 #define IDLE_FORCE_PERIOD 100
@@ -204,7 +204,7 @@ void MPU_SetPrivilege(void) {
 #define PERIPHERAL_FLAGS (MPU_RGN_SIZE_1G | MPU_RGN_PERM_NOEXEC | MPU_RGN_PERM_PRV_RW_USR_RW     | MPU_RGN_ENABLE)
 
 #define STACK_REGION 6
-#define STACK_FLAGS (MPU_RGN_SIZE_1K | MPU_RGN_PERM_NOEXEC | MPU_RGN_PERM_PRV_RW_USR_RW)
+#define STACK_FLAGS (MPU_RGN_SIZE_512B | MPU_RGN_PERM_NOEXEC | MPU_RGN_PERM_PRV_RW_USR_RW)
 
 #define TEXT_REGION 5
 #define TEXT_FLAGS (MPU_RGN_PERM_EXEC | MPU_RGN_PERM_PRV_RO_USR_RO)
@@ -387,6 +387,7 @@ void OS_Init(void){
   UART_Init();       // serial I/O for interpreter
   Heap_Init();
   ST7735_InitR(INITR_REDTAB); // LCD initialization
+  printf("OS_init\n");
 
   // printf("Table adddr: %x\n", NVIC_VTABLE_R);
 
@@ -459,6 +460,9 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   //Check if space to put new thread
   if(numThreads >= numThreadsCap){
     if(expandThreads()){
+      printf("addthread expand threads failed\n");
+      intDisableTimerEnd();
+      EnableInterrupts();
       return 0;
     }
   }
@@ -473,6 +477,9 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
       tcbs[i] = Heap_Calloc(sizeof(TCB_t));
       if(tcbs[i] == NULL)
       {
+        printf("addthread TCB alloc failed\n");
+        intDisableTimerEnd();
+        EnableInterrupts();
         return 0;
       }
       tcbs[i]->status = EXITED;
@@ -485,6 +492,9 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
   tcbs[i]->stack_base = (uint8_t *) Heap_MallocAlignedPow2(STACK_SIZE);
   if(tcbs[i]->stack_base == NULL)
   {
+    printf("addthread stack alloc failed\n");
+    intDisableTimerEnd();
+    EnableInterrupts(); 
     return 0;
   }
   uint8_t * newStack = tcbs[i]->stack_base;
@@ -524,6 +534,9 @@ int OS_AddThread(void(*task)(void), uint32_t stackSize, uint32_t priority){
       tcbs[i]->sp = NULL;
       tcbs[i]->status = EXITED;
       numThreads--;
+      printf("addthread too many threads in proc\n");
+      intDisableTimerEnd();
+      EnableInterrupts();
       return 0;
     }
     tcbs[i]->parent->tcbs[k] = tcbs[i];
@@ -667,6 +680,8 @@ int OS_AddProcess(void(*entry)(void), void *text, void *data,
     if(pcbs[i]->text == NULL) break;
   }
 
+  printf("building proc %u\n", i);
+
   if(i >= numProcsCap)
   {
     printf("too many procs\n");
@@ -681,12 +696,13 @@ int OS_AddProcess(void(*entry)(void), void *text, void *data,
   pcbs[i]->text_size = (flog2(Heap_GetAlloc(text)) -1) <<1;
   pcbs[i]->data = data;
   pcbs[i]->data_size = (flog2(Heap_GetAlloc(data)) -1) <<1;
+  printf("addproc alloc size %d, %d\n", pcbs[i]->text_size, pcbs[i]->data_size);
 
   newPCB = pcbs[i];
 
   if(!OS_AddThread(entry, stackSize, priority))
   {
-    printf("addthread issue in addproc\n");
+    printf("addproc issue with addthread\n");
     Heap_Free(text);
     Heap_Free(data);
     pcbs[i]->text = NULL;

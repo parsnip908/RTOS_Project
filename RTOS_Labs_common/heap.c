@@ -83,6 +83,7 @@ void* Heap_Malloc(int32_t desiredBytes)
 	while(curPos < HEAP_SIZE){
 		//Test if block is free and valid (negative num, absolute val larger than size)
 		if(GlobalHeap[curPos] < 0 && -1 * GlobalHeap[curPos] >= desiredSpace){ //Find free block: Header value of block is negative, Header value * -1 larger than desiredSpace
+			// printf("%d\n", curPos);
 			//Record szie, start and end location of free block
 			int32_t sizeFreeBlock = GlobalHeap[curPos] * -1; //Total size of free block as a positive number
 			int32_t startFreeBlock = curPos; //Starting index of free block
@@ -362,6 +363,7 @@ void* Heap_MallocAlignedPow2(int32_t desiredBytes){
     uint32_t regionSizeBytes = round_up_pow2((uint32_t)desiredBytes);
     uint32_t alignmentBytes = regionSizeBytes;
     
+    printf("malloc aligned %d %u \n", desiredBytes, regionSizeBytes);
     int32_t curPos = 0;
     int32_t desiredWords = BYTES_TO_WORDS(regionSizeBytes); // User data size in words
     int32_t desiredSpace = desiredWords + 2; // +2 for header/footer

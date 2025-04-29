@@ -55,8 +55,8 @@ void printJitter(int timerNum){
 }
 
 // *********** Command line interpreter (shell) ************
+char cmd[128];
 void Interpreter(void){ 
-  char cmd[128];
   int cmdLen = 0;
   while(1)
   {
