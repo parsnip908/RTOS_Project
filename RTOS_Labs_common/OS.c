@@ -66,6 +66,7 @@ queue_t special_queue;
 
 TCB_t *RunPt = NULL;
 // PCB_t *currPCB = NULL;
+int OS_Status = 0;
 
 volatile uint8_t idleCountdown = 0;
 
@@ -424,7 +425,7 @@ void OS_Init(void){
   eFile_Mount();
 
   MPU_Init();
-  
+  OS_Status = 1;
   printf("OS_init\n");
   // intDisableTimerEnd();
   EnableInterrupts();
@@ -902,6 +903,14 @@ void OS_SysTick_Hook(void)
   // EnableInterrupts();
 }
 
+void OS_MemManage_Hook(uint8_t ctrl_reg, uint8_t faultstat, uint8_t* sp)
+{
+  printf("Mem fault: %x, %x, %x", (uint32_t) ctrl_reg, (uint32_t) faultstat, (uint32_t) sp);
+  if(ctrl_reg == 0)
+    while(1);
+  OS_Kill();
+}
+
 //called by ctx switch to get next thread.
 TCB_t* OS_getNext()
 {
@@ -1038,6 +1047,7 @@ void OS_Launch(uint32_t theTimeSlice){
 
   startTime = OS_Time();
   OS_getNext();
+  OS_Status = 2;
   StartOS(); // start on the first task
     
 };

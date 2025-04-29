@@ -259,7 +259,22 @@ SVC_Return
     STR R0,[R1] ; Store return value
     BX LR ; Return from exception
 
-
+MemManage_Handler
+    CPSID I ; 2) Prevent interrupt during switch
+    MRS R0, CONTROL
+    MOV R1, #0xE000ED28
+    LDRB R1, [R1]
+    TST LR, #4 ; Test bit 2 of EXC_RETURN
+    ITTEE EQ
+    MRSEQ R2, MSP ; if 0, stacking used MSP, copy to R0
+    BICEQ R1, R1, #2 ; Clear bit 1 of control register (SPSEL = 0, MSP)
+    MRSNE R2, PSP ; if 1, stacking used PSP, copy to R0
+    ORRNE R1, R1, #2 ; Set bit 1 of control register (SPSEL = 1, PSP)
+    PUSH {LR}
+    B OS_MemManage_Hook
+    POP {LR}
+    CPSIE I ; 9) tasks run with interrupts enabled
+    BX LR
 
 GPIOPortF_Handler
     ; CPSID I
