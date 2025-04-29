@@ -1031,7 +1031,7 @@ void OS_Launch(uint32_t theTimeSlice){
   // STCTRL = 0x00000007; // enable, core clock and interrupt arm
   SysTick_Init(theTimeSlice);
   SysTick_Enable();
-  MPUEnable(MPU_CONFIG_PRIV_DEFAULT);
+  // MPUEnable(MPU_CONFIG_PRIV_DEFAULT);
   startTime = OS_Time();
   OS_getNext();
   StartOS(); // start on the first task

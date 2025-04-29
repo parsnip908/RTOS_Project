@@ -71,6 +71,11 @@ flog2_error
 
 StartOS
 ; put your code here
+    MRS R0, CONTROL
+    ORR R0, R0, #2 ; Set bit 1 of control register to 1 (SPSEL = 1, use PSP)
+    BIC R0, R0, #1 ; Clear bit 0 of control register (nPRIV = 0, privileged)
+    MSR CONTROL, R0
+    ISB
     LDR R0, =RunPt ; currently running thread
     LDR R1, [R0] ; R1 = value of RunPt
     LDR SP, [R1] ; new thread SP; SP = RunPt->sp;
@@ -108,18 +113,42 @@ ContextSwitch
     ; assuming came from interuppt (systick or pendsv)
     
     CPSID I ; 2) Prevent interrupt during switch
-    PUSH {R4-R11} ; 3) Save remaining regs r4-11
+    TST LR, #4 ; Test bit 2 of EXC_RETURN
+    ITE EQ
+    MRSEQ R2, MSP ; if 0, stacking used MSP, copy to R2
+    MRSNE R2, PSP ; if 1, stacking used PSP, copy to R2
+    ; MRS R2, PSP ; Get current process stack pointer value
+    STMFD R2!,{R4-R11} ; Save R4 to R11 in task stack (8 regs)
+    ; PUSH {R4-R11} ; 3) Save remaining regs r4-11
     LDR R0, =RunPt ; 4) R0=pointer to RunPt, old thread
     LDR R1, [R0] ; R1 = RunPt
-    STR SP, [R1] ; 5) Save SP into TCB
+    STR R2, [R1] ; 5) Save SP into TCB
     PUSH {LR}
     BL OS_getNext
     POP {LR}
+
+    MRS R1, CONTROL         ; Read CONTROL register
+    LDRB R2, [R0, #28] ; load access byte
+    CMP R2, #1
+    ITE EQ
+    BICEQ R1, R1, #1 ; Clear bit 0 of control register (nPRIV = 0, privileged)
+    ORRNE R1, R1, #1 ; Set bit 0 of control register to 1 (nPRIV = 1, unprivileged)
+    MSR CONTROL, R1  ; Write value back to CONTROL register
+    ISB              ; Instruction Sync Barrier. Make sure this is done before returning
+
     ;LDR R1, [R1,#4] ; 6) R1 = RunPt->next
     ;STR R1, [R0] ; RunPt = R1
     ;LDR SP, [R1] ; 7) new thread SP; SP = RunPt->sp;
-    LDR SP, [R0] ; function returned runpt in R0;
-    POP {R4-R11} ; 8) restore regs r4-11
+    ; LDR SP, [R0] ; function returned runpt in R0;
+    ; POP {R4-R11} ; 8) restore regs r4-11
+
+    LDR R2, [R0] ; function returned runpt in R0;
+    LDMFD R2!, {R4-R11} ; 8) restore regs r4-11
+    TST LR, #4 ; Test bit 2 of EXC_RETURN
+    ITE EQ
+    MSREQ MSP, R2 ; if 0, stacking used MSP, copy from R2
+    MSRNE PSP, R2 ; if 1, stacking used PSP, copy from R2
+    ; MSR PSP, R2
     CPSIE I ; 9) tasks run with interrupts enabled
     BX LR ; 10) restore R0-R3,R12,LR,PC,PSR
     
@@ -193,10 +222,17 @@ ContextSwitch
         IMPORT    OS_AddThread
 
 SVC_Handler
-    LDR IP,[SP,#24] ; Return address
-    LDRH IP,[IP,#-2] ; SVC instruction is 2 bytesBIC R12,#0xFF00 ; Extract ID in R12
-    BIC IP,#0xFF00 ; Extract ID in R12
-    LDM SP,{R0-R3} ; Get any parameters
+    TST LR, #4 ; Test bit 2 of EXC_RETURN
+    ITE EQ
+    MRSEQ R0, MSP ; if 0, stacking used MSP, copy to R0
+    MRSNE R0, PSP ; if 1, stacking used PSP, copy to R0
+    ; MRS R2, PSP ; Get current process stack pointer value
+
+    LDR IP,[R0, #24] ; Return address
+    LDRH IP,[R0, #-2] ; SVC instruction is 2 bytes
+    BIC IP, #0xFF00 ; Extract ID in R12
+    LDM R0,{R0-R3} ; Get any parameters
+
     PUSH {LR}
     LDR LR, =SVC_Return
 
@@ -214,7 +250,13 @@ SVC_Handler
 
 SVC_Return
     POP {LR}
-    STR R0,[SP] ; Store return value
+
+    TST LR, #4 ; Test bit 2 of EXC_RETURN
+    ITE EQ
+    MRSEQ R1, MSP ; if 0, stacking used MSP, copy to R0
+    MRSNE R1, PSP ; if 1, stacking used PSP, copy to R0
+
+    STR R0,[R1] ; Store return value
     BX LR ; Return from exception
 
 
