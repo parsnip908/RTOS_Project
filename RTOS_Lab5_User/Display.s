@@ -20,8 +20,10 @@
 			
 ; Force a long call across RAM->ROM boundaries to support relocation into RAM
 Display_Message
-	LDR		R12,=ST7735_Message
-	BX		R12
+	; LDR		R12,=ST7735_Message
+	; BX		R12
+        SVC             #5
+        BX              LR
 
 
     ALIGN

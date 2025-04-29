@@ -220,6 +220,7 @@ ContextSwitch
         IMPORT    OS_Sleep
         IMPORT    OS_Time
         IMPORT    OS_AddThread
+        IMPORT    ST7735_Message
 
 SVC_Handler
     TST LR, #4 ; Test bit 2 of EXC_RETURN
@@ -247,6 +248,8 @@ SVC_Handler
     BEQ OS_Time
     CMP IP, #4
     BEQ OS_AddThread
+    CMP IP, #5
+    BEQ ST7735_Message
 
 SVC_Return
     POP {LR}
