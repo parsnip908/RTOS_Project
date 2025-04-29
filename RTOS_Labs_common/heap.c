@@ -339,3 +339,90 @@ int32_t Heap_Stats(heap_stats_t *stats)
 	
   return 0;   
 }
+
+
+// Helper function: Round up to next power of 2
+static uint32_t round_up_pow2(uint32_t x) {
+    if (x == 0) return 1;
+    x--;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x++;
+    return x;
+}
+
+// Main aligned allocation function for MPU
+void* Heap_MallocAlignedPow2(int32_t desiredBytes){
+    if(desiredBytes <= 0) return NULL;
+    if(desiredBytes < 32) desiredBytes = 32;
+    
+    uint32_t regionSizeBytes = round_up_pow2((uint32_t)desiredBytes);
+    uint32_t alignmentBytes = regionSizeBytes;
+    
+    int32_t curPos = 0;
+    int32_t desiredWords = BYTES_TO_WORDS(regionSizeBytes); // User data size in words
+    int32_t desiredSpace = desiredWords + 2; // +2 for header/footer
+
+    while(curPos < HEAP_SIZE){
+        if(GlobalHeap[curPos] < 0 && -1 * GlobalHeap[curPos] >= desiredSpace){
+            int32_t sizeFreeBlock = -GlobalHeap[curPos];
+            uintptr_t startAddress = (uintptr_t)(&GlobalHeap[curPos + 1]);
+            uintptr_t alignedAddress = (startAddress + (alignmentBytes - 1)) & ~(alignmentBytes - 1);
+            int32_t alignmentPaddingWords = BYTES_TO_WORDS(alignedAddress - startAddress);
+
+            // prevent a padding block that is too small.
+            if(alignmentPaddingWords > 0 && alignmentPaddingWords <= 5)
+            {
+            	alignedAddress += alignmentBytes;
+            	alignmentPaddingWords += BYTES_TO_WORDS(alignmentBytes);
+            }
+
+            // check if necessary padding and allocation fit into free block
+            if(alignmentPaddingWords >= 0 && alignmentPaddingWords + desiredSpace <= sizeFreeBlock){
+                // Create a padding block if needed
+                if(alignmentPaddingWords > 0){
+                    GlobalHeap[curPos] = -alignmentPaddingWords;
+                    GlobalHeap[curPos + alignmentPaddingWords - 1] = -alignmentPaddingWords;
+                    curPos += alignmentPaddingWords;
+                    sizeFreeBlock -= alignmentPaddingWords;
+                }
+
+                // Allocate the aligned block
+                GlobalHeap[curPos] = desiredSpace;
+                GlobalHeap[curPos + desiredSpace - 1] = desiredSpace;
+
+                int32_t remainingSize = sizeFreeBlock - desiredSpace;
+                if(remainingSize >= 3){
+                    GlobalHeap[curPos + desiredSpace] = -remainingSize;
+                    GlobalHeap[curPos + sizeFreeBlock - 1] = -remainingSize;
+                } else {
+                    // Not enough space for a free block, allocate the whole chunk
+                    GlobalHeap[curPos] = sizeFreeBlock;
+                    GlobalHeap[curPos + sizeFreeBlock - 1] = sizeFreeBlock;
+                }
+
+                return (void*)(&GlobalHeap[curPos + 1]);
+            }
+        }
+
+        // Move to next block
+        curPos = curPos + abs(GlobalHeap[curPos]);
+    }
+
+    return NULL; // Failed
+}
+
+
+int32_t Heap_GetAlloc(void* pointer)
+{
+	if(pointer == NULL){return 0;}
+		
+	//Get block data
+	int32_t* blockStartHeader = (int32_t*)pointer - 1; //Start Header
+	int32_t blockSizeWord = *blockStartHeader; //Size in words (including headers), should be positive (not freed)
+
+	return (blockSizeWord-2) * 4;
+}

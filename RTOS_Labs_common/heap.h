@@ -41,6 +41,7 @@ int32_t Heap_Init(void);
  * @brief  Allocate memory
  */
 void* Heap_Malloc(int32_t desiredBytes);
+void* Heap_MallocAlignedPow2(int32_t desiredBytes);
 
 
 /**
@@ -83,5 +84,6 @@ int32_t Heap_Free(void* pointer);
  */
 int32_t Heap_Stats(heap_stats_t *stats);
 
+int32_t Heap_GetAlloc(void* pointer);
 
 #endif //#ifndef HEAP_H

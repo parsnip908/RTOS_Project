@@ -47,8 +47,8 @@
 typedef struct pcb PCB_t;
 
 typedef enum {
-  USER,
-  KERNEL,
+  KERNEL = 0,
+  USER = 1,
 } Access;
 
 typedef struct __attribute__((packed)) tcb {
@@ -66,7 +66,9 @@ typedef struct __attribute__((packed)) tcb {
 struct pcb {
   uint8_t id;
   void* text;
+  int text_size;
   void* data;
+  int data_size;
   TCB_t* tcbs[THREADSPERPROC];
 };
 

@@ -73,7 +73,7 @@ UINT LOADER_WRITE(FIL* fd, void* buffer, size_t size) { UINT w;
 #define LOADER_SEEK_FROM_START(fd, off) f_lseek(fd, off)
 #define LOADER_TELL(fd) (fd->fptr)
 
-#define LOADER_ALIGN_ALLOC(size, align, perm) Heap_Malloc(size)
+#define LOADER_ALIGN_ALLOC(size, align, perm) Heap_MallocAlignedPow2(size)
 #define LOADER_FREE(ptr) Heap_Free(ptr)
 void LOADER_CLEAR(void* ptr, size_t size) { int i; int32_t *p;
   for(p = ptr, i = 0; i < size/sizeof(int32_t); i++, p++) *p = 0;
