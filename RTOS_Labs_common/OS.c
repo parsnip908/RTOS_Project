@@ -1032,6 +1032,10 @@ void OS_Launch(uint32_t theTimeSlice){
   SysTick_Init(theTimeSlice);
   SysTick_Enable();
   // MPUEnable(MPU_CONFIG_PRIV_DEFAULT);
+  for(uint32_t i = 0; i < numThreadsCap; i++)
+    if(tcbs[i])
+      tcbs[i]->access = KERNEL;
+
   startTime = OS_Time();
   OS_getNext();
   StartOS(); // start on the first task

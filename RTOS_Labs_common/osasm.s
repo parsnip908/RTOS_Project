@@ -131,8 +131,8 @@ ContextSwitch
     LDRB R2, [R0, #28] ; load access byte
     CMP R2, #1
     ITE EQ
-    BICEQ R1, R1, #1 ; Clear bit 0 of control register (nPRIV = 0, privileged)
-    ORRNE R1, R1, #1 ; Set bit 0 of control register to 1 (nPRIV = 1, unprivileged)
+    ORREQ R1, R1, #1 ; Set bit 0 of control register to 1 (nPRIV = 1, unprivileged)
+    BICNE R1, R1, #1 ; Clear bit 0 of control register (nPRIV = 0, privileged)
     MSR CONTROL, R1  ; Write value back to CONTROL register
     ISB              ; Instruction Sync Barrier. Make sure this is done before returning
 
@@ -229,7 +229,7 @@ SVC_Handler
     ; MRS R2, PSP ; Get current process stack pointer value
 
     LDR IP,[R0, #24] ; Return address
-    LDRH IP,[R0, #-2] ; SVC instruction is 2 bytes
+    LDRH IP,[IP, #-2] ; SVC instruction is 2 bytes
     BIC IP, #0xFF00 ; Extract ID in R12
     LDM R0,{R0-R3} ; Get any parameters
 
