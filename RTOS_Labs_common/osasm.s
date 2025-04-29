@@ -259,11 +259,14 @@ SVC_Return
     STR R0,[R1] ; Store return value
     BX LR ; Return from exception
 
+        IMPORT  OS_MemManage_Hook
+        EXPORT  MemManage_Handler
+
 MemManage_Handler
     CPSID I ; 2) Prevent interrupt during switch
     MRS R0, CONTROL
-    MOV R1, #0xE000ED28
-    LDRB R1, [R1]
+    MOV R1, #0xE000E000
+    LDRB R1, [R1, #0xD28]
     TST LR, #4 ; Test bit 2 of EXC_RETURN
     ITTEE EQ
     MRSEQ R2, MSP ; if 0, stacking used MSP, copy to R0

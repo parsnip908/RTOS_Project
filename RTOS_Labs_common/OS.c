@@ -177,9 +177,9 @@ void intDisableTimerEnd(void)
   MPU fault handler
   Should be initialized to trigger on a MPU fault
  *------------------------------------------------------------------------------*/
-void MPU_FaultHandler(void) {
-  //Implement fault behavior
-}
+// void MPU_FaultHandler(void) {
+//   //Implement fault behavior
+// }
 
 /*
 //Switch privilege to user and set global
@@ -224,6 +224,7 @@ void MPU_Init(void){
   //Set whatever region is needed (subject to change)
   MPURegionSet(PERIPHERAL_REGION, PERIPHERAL_BASE_ADDR, PERIPHERAL_FLAGS);
   MPURegionSet(BACKGROUND_REGION, BACKGROUND_BASE_ADDR, BACKGROUND_FLAGS);
+  IntEnable(4);
 }
 
 /*------------------------------------------------------------------------------
@@ -905,7 +906,7 @@ void OS_SysTick_Hook(void)
 
 void OS_MemManage_Hook(uint8_t ctrl_reg, uint8_t faultstat, uint8_t* sp)
 {
-  printf("Mem fault: %x, %x, %x", (uint32_t) ctrl_reg, (uint32_t) faultstat, (uint32_t) sp);
+  printf("Mem fault: %x, %x, %x\n", (uint32_t) ctrl_reg, (uint32_t) faultstat, (uint32_t) sp);
   if(ctrl_reg == 0)
     while(1);
   OS_Kill();
