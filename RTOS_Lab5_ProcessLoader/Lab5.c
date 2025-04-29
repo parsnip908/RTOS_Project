@@ -75,6 +75,12 @@ void PortD_Init(void){
 
 }
 
+//Choose if you want to run the original lab 5 or the new functions
+//#define Lab5_functions
+#define Custom_functions
+
+/**** Lab 5 functions *******************************************************/
+#ifdef Lab5_functions
 
 //------------------Task 1--------------------------------
 // background thread executes with SW1 button
@@ -599,3 +605,123 @@ int Testmain3(void){   // Testmain3
 int main(void) { 			// main
   realmain();
 }
+
+#endif // Lab 5
+/**** End Lab 5 ***************************************************/
+
+
+/**** Custom Project Tests *******************************************************/
+#ifdef Custom_functions
+
+//*****************Test thread allocation*************************
+// Test thread allocation expansion, what happens if you have more than 5 threads
+uint32_t Count1;   // number of times thread1 loops
+uint32_t Count2;   // number of times thread2 loops
+uint32_t Count3;   // number of times thread3 loops
+uint32_t Count4;   // number of times thread4 loops
+uint32_t Count5;   // number of times thread5 loops
+uint32_t Count6;   // number of times thread6 loops
+void Thread1(void){
+  Count1 = 0;          
+  for(;;){
+    Count1++;
+    ST7735_Message(0,1,"Count1 =",Count1); 
+    OS_Sleep(50);
+  }
+}
+void Thread2(void){
+  Count2 = 0;          
+  for(;;){
+    Count2++;
+    ST7735_Message(0,2,"Count2 =",Count2); 
+    OS_Sleep(50);
+  }
+}
+void Thread3(void){
+  Count3 = 0;          
+  for(;;){
+    Count3++;
+    ST7735_Message(0,3,"Count3 =",Count3); 
+    OS_Sleep(50);
+  }
+}
+void Thread4(void){
+  Count4 = 0;          
+  for(;;){
+    Count4++;
+    ST7735_Message(0,4,"Count4 =",Count4); 
+    OS_Sleep(50);
+  }
+}
+void Thread5(void){
+  Count5 = 0;          
+  for(;;){
+    Count5++;
+    ST7735_Message(0,5,"Count5 =",Count5); 
+    OS_Sleep(50);
+  }
+}
+void ThreadIdle(void){         
+  IdleCount = 0;          
+  while(1) {
+    IdleCount++;
+    PD0 ^= 0x01;
+    WaitForInterrupt();
+  }
+}
+
+int TestThreadAlloc(void){  
+  OS_Init();           // initialize, disable interrupts
+  PortD_Init();
+  
+  // create initial foreground threads
+  NumCreated = 0;
+  NumCreated += OS_AddThread(&Thread1,128,3);  
+  NumCreated += OS_AddThread(&Thread2,128,3); 
+  NumCreated += OS_AddThread(&Thread3,128,3);  
+  NumCreated += OS_AddThread(&Thread4,128,3); 
+  NumCreated += OS_AddThread(&Thread5,128,3);  
+  NumCreated += OS_AddThread(&ThreadIdle,128,5); 
+ 
+  OS_Launch(10*TIME_1MS); // doesn't return, interrupts enabled in here
+  return 0;               // this never executes
+}
+
+//*****************Test illegal access*************************
+// Test array out of bound accesses
+void ThreadOutOfBounds(void){
+  int arr[5];  
+  uint32_t index = 0;        
+  for(;;){
+    index++;
+    arr[index] = 5;
+  }
+}
+
+void ThreadIllegalAccess(void){
+  for(;;){
+    int* number = 0x00800;
+    *number = 5;
+  }
+}
+
+int TestIllegalAccess(void){  
+  OS_Init();           // initialize, disable interrupts
+  PortD_Init();
+  
+  // create initial foreground threads
+  NumCreated = 0;
+  NumCreated += OS_AddThread(&ThreadIllegalAccess,128,3);   
+  NumCreated += OS_AddThread(&ThreadOutOfBounds,128,3);  
+  NumCreated += OS_AddThread(&ThreadIdle,128,5); 
+ 
+  OS_Launch(10*TIME_1MS); // doesn't return, interrupts enabled in here
+  return 0;               // this never executes
+}
+
+
+int main(void) {
+  TestIllegalAccess();
+}
+#endif 
+/**** End motor board code ****************************************************/

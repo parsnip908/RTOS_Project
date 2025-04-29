@@ -211,6 +211,8 @@ SVC_Handler
     BEQ OS_Time
     CMP IP, #4
     BEQ OS_AddThread
+    CMP IP, #5
+    BEQ ST7735_Message
 
 SVC_Return
     POP {LR}
